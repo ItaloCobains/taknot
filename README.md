@@ -5,7 +5,7 @@ App de notas em **Markdown** para o desktop — rápido, com visual glass no mac
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.1-blue)
+![Version](https://img.shields.io/badge/version-0.0.2-blue)
 
 ## Features
 
