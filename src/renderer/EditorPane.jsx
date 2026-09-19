@@ -24,7 +24,7 @@ import MdCodeEditor from './MdCodeEditor.jsx';
 import TagBadge from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
-import { normalizeMarkdown, enablePreviewTasks, toggleTaskAt } from './markdown.js';
+import { normalizeMarkdown, enablePreviewTasks, enableWikiLinks, toggleTaskAt } from './markdown.js';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
@@ -47,9 +47,11 @@ export default function EditorPane({
   onForward,
   onToggleFocus,
   vimMode = false,
+  noteTitles = [],
   onChange,
   onDelete,
   onDuplicated,
+  onOpenNoteByTitle,
 }) {
   const [viewMode, setViewMode] = useState('split'); // edit | split | preview
   const [tagDraft, setTagDraft] = useState('');
@@ -96,8 +98,10 @@ export default function EditorPane({
 
   const previewHtml = useMemo(
     () =>
-      enablePreviewTasks(
-        marked.parse(normalizeMarkdown(note?.body || ''), { async: false }),
+      enableWikiLinks(
+        enablePreviewTasks(
+          marked.parse(normalizeMarkdown(note?.body || ''), { async: false }),
+        ),
       ),
     [note?.body],
   );
@@ -321,6 +325,7 @@ export default function EditorPane({
               onScrollRatio={onEditorScrollRatio}
               apiRef={editorApiRef}
               vimMode={vimMode}
+              noteTitles={noteTitles}
             />
           </div>
         )}
@@ -380,6 +385,20 @@ export default function EditorPane({
                   if (Number.isFinite(idx)) {
                     patch({ body: toggleTaskAt(note.body, idx) });
                   }
+                  return;
+                }
+                const wiki = e.target.closest?.('a.wiki-link,[data-wiki-title]');
+                if (wiki) {
+                  e.preventDefault();
+                  const title =
+                    wiki.getAttribute('data-wiki-title') ||
+                    decodeURIComponent(
+                      (wiki.getAttribute('href') || '').replace(
+                        /^taknot:\/\/wiki\//i,
+                        '',
+                      ),
+                    );
+                  onOpenNoteByTitle?.(title);
                   return;
                 }
                 const a = e.target.closest?.('a');

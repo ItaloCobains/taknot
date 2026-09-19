@@ -365,6 +365,22 @@ export default function App() {
     setHistoryIndex(next.length - 1);
   }
 
+  async function openNoteByTitle(title) {
+    const q = String(title || '').trim().toLowerCase();
+    if (!q) return;
+    const hit =
+      notes.find((n) => (n.title || '').trim().toLowerCase() === q) || null;
+    if (hit) {
+      selectNote(hit.id);
+      return;
+    }
+    const list = await refreshNotes();
+    const again = (list || []).find(
+      (n) => (n.title || '').trim().toLowerCase() === q,
+    );
+    if (again) selectNote(again.id);
+  }
+
   function goBack() {
     if (historyIndex <= 0) return;
     const next = historyIndex - 1;
@@ -1529,6 +1545,7 @@ export default function App() {
             saving={saving}
             focusMode={focusMode}
             vimMode={vimMode}
+            noteTitles={notes.map((n) => n.title).filter(Boolean)}
             canGoBack={historyIndex > 0}
             canGoForward={historyIndex >= 0 && historyIndex < history.length - 1}
             onBack={goBack}
@@ -1536,6 +1553,7 @@ export default function App() {
             onToggleFocus={() => setFocusMode((v) => !v)}
             onChange={setNote}
             onDelete={handleDelete}
+            onOpenNoteByTitle={openNoteByTitle}
             onDuplicated={(created) => {
               refreshNotes();
               refreshMeta();

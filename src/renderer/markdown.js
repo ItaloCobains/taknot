@@ -29,6 +29,24 @@ export function enablePreviewTasks(html) {
   );
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Turn [[Note Title]] into clickable wiki links in preview HTML. */
+export function enableWikiLinks(html) {
+  return String(html || '').replace(/\[\[([^\]\n]+?)\]\]/g, (_m, raw) => {
+    const title = String(raw).trim();
+    if (!title) return _m;
+    const enc = encodeURIComponent(title);
+    return `<a class="wiki-link" href="taknot://wiki/${enc}" data-wiki-title="${escapeHtml(title)}">${escapeHtml(title)}</a>`;
+  });
+}
+
 /** Toggle the Nth markdown task `- [ ]` / `- [x]`. */
 export function toggleTaskAt(body, index) {
   let i = 0;

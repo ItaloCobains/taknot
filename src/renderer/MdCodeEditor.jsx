@@ -8,6 +8,9 @@ import {
   lineNumbers,
   drawSelection,
   placeholder,
+  Decoration,
+  MatchDecorator,
+  ViewPlugin,
 } from '@codemirror/view';
 import {
   defaultKeymap,
@@ -26,6 +29,42 @@ import {
   detectSlash,
   filterSlashCommands,
 } from './slashCommands.js';
+
+const wikiMatcher = new MatchDecorator({
+  regexp: /\[\[[^\]\n]+?\]\]/g,
+  decoration: Decoration.mark({ class: 'cm-wiki-link' }),
+});
+
+const wikiLinkPlugin = ViewPlugin.fromClass(
+  class {
+    decorations;
+    constructor(view) {
+      this.decorations = wikiMatcher.createDeco(view);
+    }
+    update(update) {
+      this.decorations = wikiMatcher.updateDeco(update, this.decorations);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+function detectWiki(body, caret) {
+  const before = body.slice(0, caret);
+  const open = before.lastIndexOf('[[');
+  if (open < 0) return null;
+  const afterOpen = before.slice(open + 2);
+  if (afterOpen.includes(']]') || afterOpen.includes('\n')) return null;
+  return { start: open, end: caret, query: afterOpen };
+}
+
+function formatVimMode(mode) {
+  const m = String(mode || 'normal').toLowerCase();
+  if (m.includes('insert')) return { key: 'insert', label: 'INSERT' };
+  if (m.includes('replace')) return { key: 'replace', label: 'REPLACE' };
+  if (m.includes('visual')) return { key: 'visual', label: 'VISUAL' };
+  if (m.includes('command')) return { key: 'command', label: 'COMMAND' };
+  return { key: 'normal', label: 'NORMAL' };
+}
 
 const coolHighlight = HighlightStyle.define([
   { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700', fontSize: '1.75em' },
@@ -84,19 +123,15 @@ const editorTheme = EditorView.theme(
     '.cm-cursor, .cm-dropCursor': {
       borderLeftColor: '#e8f0ff',
     },
+    '.cm-wiki-link': {
+      color: '#5eead4',
+      textDecoration: 'underline',
+      textDecorationStyle: 'dashed',
+      textUnderlineOffset: '3px',
+    },
   },
   { dark: true },
 );
-
-
-function formatVimMode(mode) {
-  const m = String(mode || 'normal').toLowerCase();
-  if (m.includes('insert')) return { key: 'insert', label: 'INSERT' };
-  if (m.includes('replace')) return { key: 'replace', label: 'REPLACE' };
-  if (m.includes('visual')) return { key: 'visual', label: 'VISUAL' };
-  if (m.includes('command')) return { key: 'command', label: 'COMMAND' };
-  return { key: 'normal', label: 'NORMAL' };
-}
 
 export default function MdCodeEditor({
   noteId,
@@ -105,35 +140,63 @@ export default function MdCodeEditor({
   onScrollRatio,
   apiRef,
   vimMode = false,
+  noteTitles = [],
 }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const vimCompartmentRef = useRef(null);
   const slashMenuRef = useRef(null);
+  const wikiMenuRef = useRef(null);
   const [slash, setSlash] = useState(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [wiki, setWiki] = useState(null);
+  const [wikiIndex, setWikiIndex] = useState(0);
   const [vimStatus, setVimStatus] = useState(null);
+
   const slashList = useMemo(
     () => (slash ? filterSlashCommands(slash.query) : []),
     [slash],
   );
+  const wikiList = useMemo(() => {
+    if (!wiki) return [];
+    const q = wiki.query.trim().toLowerCase();
+    const titles = [...new Set(noteTitles.filter(Boolean))];
+    const filtered = q
+      ? titles.filter((title) => title.toLowerCase().includes(q))
+      : titles;
+    return filtered.slice(0, 12);
+  }, [wiki, noteTitles]);
 
   const onChangeRef = useRef(onChange);
   const onScrollRef = useRef(onScrollRatio);
   const slashListRef = useRef(slashList);
   const slashIndexRef = useRef(slashIndex);
   const slashRef = useRef(slash);
+  const wikiListRef = useRef(wikiList);
+  const wikiIndexRef = useRef(wikiIndex);
+  const wikiRef = useRef(wiki);
+  const noteTitlesRef = useRef(noteTitles);
   onChangeRef.current = onChange;
   onScrollRef.current = onScrollRatio;
   slashListRef.current = slashList;
   slashIndexRef.current = slashIndex;
   slashRef.current = slash;
+  wikiListRef.current = wikiList;
+  wikiIndexRef.current = wikiIndex;
+  wikiRef.current = wiki;
+  noteTitlesRef.current = noteTitles;
 
   useEffect(() => {
     if (!slash || !slashMenuRef.current) return;
     const active = slashMenuRef.current.querySelector('.slash-item.active');
     active?.scrollIntoView({ block: 'nearest' });
   }, [slashIndex, slash, slashList.length]);
+
+  useEffect(() => {
+    if (!wiki || !wikiMenuRef.current) return;
+    const active = wikiMenuRef.current.querySelector('.wiki-item.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [wikiIndex, wiki, wikiList.length]);
 
   function applySlashCommand(cmd) {
     const view = viewRef.current;
@@ -146,30 +209,32 @@ export default function MdCodeEditor({
       selection: { anchor: cursor },
     });
     setSlash(null);
+    setWiki(null);
+    view.focus();
+  }
+
+  function applyWikiTitle(title) {
+    const view = viewRef.current;
+    const w = wikiRef.current;
+    if (!view || !w || !title) return;
+    const insert = `[[${title}]]`;
+    view.dispatch({
+      changes: { from: w.start, to: w.end, insert },
+      selection: { anchor: w.start + insert.length },
+    });
+    setWiki(null);
     view.focus();
   }
 
   useEffect(() => {
     if (!hostRef.current) return undefined;
 
-    const updateSlash = (view) => {
-      const caret = view.state.selection.main.head;
-      const body = view.state.doc.toString();
-      const hit = detectSlash(body, caret);
-      if (!hit) {
-        setSlash(null);
-        return;
-      }
-      const coords = view.coordsAtPos(hit.start);
-      if (!coords) {
-        setSlash({ ...hit, top: 8, left: 16 });
-        setSlashIndex(0);
-        return;
-      }
-      const matches = filterSlashCommands(hit.query);
-      const menuW = 240;
-      const menuH = Math.min(280, Math.max(48, matches.length * 36 + 12));
+    const placeMenu = (view, pos, count) => {
+      const coords = view.coordsAtPos(pos);
+      const menuW = 260;
+      const menuH = Math.min(280, Math.max(48, count * 36 + 12));
       const gap = 6;
+      if (!coords) return { top: 8, left: 16, maxHeight: menuH };
       const spaceBelow = window.innerHeight - coords.bottom - 8;
       const openAbove = spaceBelow < menuH && coords.top > menuH + 8;
       const top = openAbove
@@ -179,11 +244,48 @@ export default function MdCodeEditor({
         8,
         Math.min(coords.left, window.innerWidth - menuW - 8),
       );
-      setSlash({ ...hit, top, left, maxHeight: menuH });
+      return { top, left, maxHeight: menuH };
+    };
+
+    const updateMenus = (view) => {
+      const caret = view.state.selection.main.head;
+      const body = view.state.doc.toString();
+
+      const wikiHit = detectWiki(body, caret);
+      if (wikiHit) {
+        setSlash(null);
+        const titles = noteTitlesRef.current || [];
+        const q = wikiHit.query.trim().toLowerCase();
+        const matches = (
+          q
+            ? titles.filter((title) => title.toLowerCase().includes(q))
+            : titles
+        ).slice(0, 12);
+        const place = placeMenu(view, wikiHit.start, Math.max(matches.length, 1));
+        setWiki({ ...wikiHit, ...place });
+        setWikiIndex(0);
+        return;
+      }
+      setWiki(null);
+
+      const hit = detectSlash(body, caret);
+      if (!hit) {
+        setSlash(null);
+        return;
+      }
+      const matches = filterSlashCommands(hit.query);
+      const place = placeMenu(view, hit.start, Math.max(matches.length, 1));
+      setSlash({ ...hit, ...place });
       setSlashIndex(0);
     };
 
     const applyFromKey = () => {
+      const w = wikiRef.current;
+      const wlist = wikiListRef.current;
+      if (w && wlist.length) {
+        applyWikiTitle(wlist[wikiIndexRef.current] || wlist[0]);
+        return true;
+      }
       const list = slashListRef.current;
       const s = slashRef.current;
       if (!s || !list.length) return false;
@@ -201,15 +303,20 @@ export default function MdCodeEditor({
         drawSelection(),
         history(),
         markdown(),
+        wikiLinkPlugin,
         vimCompartment.of(vimMode ? vim() : []),
         syntaxHighlighting(coolHighlight),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         editorTheme,
-        placeholder("Type '/' for commands…"),
+        placeholder("Type '/' for commands or [[ for notes…"),
         keymap.of([
           {
             key: 'ArrowDown',
             run: () => {
+              if (wikiRef.current && wikiListRef.current.length) {
+                setWikiIndex((i) => (i + 1) % wikiListRef.current.length);
+                return true;
+              }
               if (!slashRef.current || !slashListRef.current.length) return false;
               setSlashIndex((i) => (i + 1) % slashListRef.current.length);
               return true;
@@ -218,6 +325,14 @@ export default function MdCodeEditor({
           {
             key: 'ArrowUp',
             run: () => {
+              if (wikiRef.current && wikiListRef.current.length) {
+                setWikiIndex(
+                  (i) =>
+                    (i - 1 + wikiListRef.current.length) %
+                    wikiListRef.current.length,
+                );
+                return true;
+              }
               if (!slashRef.current || !slashListRef.current.length) return false;
               setSlashIndex(
                 (i) =>
@@ -232,6 +347,10 @@ export default function MdCodeEditor({
           {
             key: 'Escape',
             run: () => {
+              if (wikiRef.current) {
+                setWiki(null);
+                return true;
+              }
               if (!slashRef.current) return false;
               setSlash(null);
               return true;
@@ -247,7 +366,7 @@ export default function MdCodeEditor({
             onChangeRef.current(update.state.doc.toString());
           }
           if (update.docChanged || update.selectionSet) {
-            updateSlash(update.view);
+            updateMenus(update.view);
           }
         }),
         EditorView.domEventHandlers({
@@ -285,7 +404,6 @@ export default function MdCodeEditor({
       vimCompartmentRef.current = null;
       setVimStatus(null);
     };
-    // Remount when note changes so doc/history reset cleanly
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId]);
 
@@ -319,7 +437,6 @@ export default function MdCodeEditor({
     });
   }, [value]);
 
-  // Expose scroll setter for preview → editor sync
   useEffect(() => {
     const view = viewRef.current;
     if (!apiRef) return undefined;
@@ -345,6 +462,40 @@ export default function MdCodeEditor({
           <span className="vim-status-hint">Esc normal · i insert · v visual</span>
         </div>
       )}
+      {wiki &&
+        createPortal(
+          <div
+            className="slash-menu wiki-menu"
+            ref={wikiMenuRef}
+            style={{
+              top: wiki.top,
+              left: wiki.left,
+              maxHeight: wiki.maxHeight || 280,
+            }}
+            role="listbox"
+          >
+            {wikiList.length === 0 ? (
+              <div className="slash-item muted">No matching notes</div>
+            ) : (
+              wikiList.map((title, i) => (
+                <button
+                  key={title}
+                  type="button"
+                  role="option"
+                  aria-selected={i === wikiIndex}
+                  className={`slash-item wiki-item ${i === wikiIndex ? 'active' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyWikiTitle(title);
+                  }}
+                >
+                  <span className="slash-label">{title}</span>
+                </button>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
       {slash &&
         slashList.length > 0 &&
         createPortal(

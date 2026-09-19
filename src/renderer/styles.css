@@ -1947,3 +1947,21 @@ textarea.editor {
   background: var(--accent-amber, #e5c07b);
   border-color: rgba(229, 192, 123, 0.7);
 }
+
+
+.markdown a.wiki-link {
+  color: var(--accent-cyan, #5eead4);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.markdown a.wiki-link:hover {
+  color: var(--accent, #7aa2ff);
+}
+
+.wiki-menu .slash-item.muted {
+  color: var(--muted);
+  cursor: default;
+}
