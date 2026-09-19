@@ -4,6 +4,7 @@ import {
   ListTodo,
   NotebookPen,
   PanelLeft,
+  Pin,
   PenLine,
   Plus,
   Search,
@@ -162,6 +163,8 @@ export default function App() {
   const [renameDraft, setRenameDraft] = useState('');
   const [notebookDetail, setNotebookDetail] = useState(null);
   const saveBaselineRef = useRef(null);
+  const noteRef = useRef(null);
+  noteRef.current = note;
 
   const notebookTree = useMemo(() => flattenNotebooks(notebooks), [notebooks]);
 
@@ -213,6 +216,7 @@ export default function App() {
       notebookId: n.notebookId,
       tags: n.tags || [],
       status: n.status,
+      pinned: Boolean(n.pinned),
     });
   }
 
@@ -310,52 +314,121 @@ export default function App() {
     };
   }, [selectedId]);
 
-  useEffect(() => {
-    if (!note?.id) return undefined;
+  const persistNote = useCallback(async (n, { force = false } = {}) => {
+    if (!n?.id) return null;
     const payload = {
-      id: note.id,
-      title: titleFromBody(note.body),
-      body: note.body,
-      notebookId: note.notebookId,
-      tags: note.tags,
-      status: note.status,
+      id: n.id,
+      title: titleFromBody(n.body),
+      body: n.body,
+      notebookId: n.notebookId,
+      tags: n.tags || [],
+      status: n.status,
+      pinned: Boolean(n.pinned),
     };
     const snap = JSON.stringify(payload);
+    if (!force && snap === saveBaselineRef.current) return n;
+    setSaving(true);
+    try {
+      const saved = await window.taknot.saveNote(payload);
+      const merged = { ...n, ...saved, pinned: Boolean(saved.pinned) };
+      saveBaselineRef.current = noteSnapshot(merged);
+      setNote((prev) =>
+        prev && prev.id === saved.id
+          ? {
+              ...prev,
+              title: saved.title,
+              updatedAt: saved.updatedAt,
+              pinned: Boolean(saved.pinned),
+            }
+          : prev,
+      );
+      setNotes((prev) => {
+        const rest = prev.filter((x) => x.id !== saved.id);
+        const row = {
+          ...(prev.find((x) => x.id === saved.id) || {}),
+          ...saved,
+          pinned: Boolean(saved.pinned),
+        };
+        return [row, ...rest].sort((a, b) => {
+          const ap = a.pinned ? 1 : 0;
+          const bp = b.pinned ? 1 : 0;
+          if (ap !== bp) return bp - ap;
+          return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+        });
+      });
+      return saved;
+    } catch (err) {
+      console.error(err);
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!note?.id) return undefined;
+    const snap = noteSnapshot(note);
     if (snap === saveBaselineRef.current) return undefined;
 
-    const handle = setTimeout(async () => {
-      setSaving(true);
-      try {
-        const saved = await window.taknot.saveNote(payload);
-        saveBaselineRef.current = snap;
-        setNote((prev) =>
-          prev && prev.id === saved.id
-            ? { ...prev, title: saved.title, updatedAt: saved.updatedAt }
-            : prev,
-        );
-        await refreshNotes();
-        await refreshMeta();
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setSaving(false);
-      }
+    const handle = setTimeout(() => {
+      persistNote(note);
     }, 400);
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      const latest = noteRef.current;
+      if (
+        latest?.id === note.id &&
+        noteSnapshot(latest) !== saveBaselineRef.current
+      ) {
+        void persistNote(latest);
+      }
+    };
   }, [
     note?.id,
     note?.body,
     note?.notebookId,
     note?.status,
     note?.tags,
-    refreshNotes,
-    refreshMeta,
+    note?.pinned,
+    persistNote,
   ]);
+
+  async function togglePin() {
+    if (!note?.id) return;
+    const next = { ...note, pinned: !Boolean(note.pinned) };
+    setNote(next);
+    noteRef.current = next;
+    setNotes((prev) => {
+      const rest = prev.filter((x) => x.id !== next.id);
+      const row = { ...(prev.find((x) => x.id === next.id) || {}), ...next };
+      return [row, ...rest].sort((a, b) => {
+        const ap = a.pinned ? 1 : 0;
+        const bp = b.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+      });
+    });
+    const saved = await persistNote(next, { force: true });
+    if (!saved) {
+      console.error('togglePin: save failed');
+      setNote(note);
+      noteRef.current = note;
+      await refreshNotes();
+    }
+  }
 
   const notebookName = (id) =>
     notebooks.find((n) => n.id === id)?.name || 'Notebook';
 
   function selectNote(id, { pushHistory = true } = {}) {
+    const latest = noteRef.current;
+    if (
+      latest?.id &&
+      latest.id !== id &&
+      noteSnapshot(latest) !== saveBaselineRef.current
+    ) {
+      void persistNote(latest);
+    }
     setSelectedId(id);
     if (!id || !pushHistory) return;
     const trimmed = history.slice(0, historyIndex + 1);
@@ -1343,10 +1416,13 @@ export default function App() {
               <button
                 key={n.id}
                 type="button"
-                className={`note-item status-${(n.status || 'active').replace('_', '-')} ${selectedId === n.id ? 'selected' : ''}`}
+                className={`note-item status-${(n.status || 'active').replace('_', '-')} ${n.pinned ? 'pinned' : ''} ${selectedId === n.id ? 'selected' : ''}`}
                 onClick={() => selectNote(n.id)}
               >
-                <div className="note-item-title">{n.title}</div>
+                <div className="note-item-title">
+                  {n.pinned && <Pin size={12} strokeWidth={2.25} className="note-pin-icon" />}
+                  {n.title}
+                </div>
                 <div className="note-item-meta">
                   <span className="note-item-time">
                     {relativeTime(n.updatedAt)}
@@ -1554,6 +1630,7 @@ export default function App() {
             onChange={setNote}
             onDelete={handleDelete}
             onOpenNoteByTitle={openNoteByTitle}
+            onTogglePin={togglePin}
             onDuplicated={(created) => {
               refreshNotes();
               refreshMeta();

@@ -1965,3 +1965,19 @@ textarea.editor {
   color: var(--muted);
   cursor: default;
 }
+
+
+.note-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-pin-icon {
+  flex-shrink: 0;
+  color: var(--accent-amber, #e5c07b);
+}
+
+.note-item.pinned .note-item-title {
+  color: var(--text);
+}

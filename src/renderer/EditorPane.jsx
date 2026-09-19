@@ -17,6 +17,8 @@ import {
   Minimize2,
   MoreVertical,
   Pencil,
+  Pin,
+  PinOff,
   Save,
   Trash2,
 } from 'lucide-react';
@@ -52,6 +54,7 @@ export default function EditorPane({
   onDelete,
   onDuplicated,
   onOpenNoteByTitle,
+  onTogglePin,
 }) {
   const [viewMode, setViewMode] = useState('split'); // edit | split | preview
   const [tagDraft, setTagDraft] = useState('');
@@ -221,6 +224,14 @@ export default function EditorPane({
         </div>
 
         <div className="toolbar-right" ref={menuRef}>
+          <button
+            type="button"
+            className={`icon-btn ${note.pinned ? 'active' : ''}`}
+            title={note.pinned ? 'Unpin note' : 'Pin note'}
+            onClick={() => onTogglePin?.()}
+          >
+            {note.pinned ? <PinOff {...ICON} /> : <Pin {...ICON} />}
+          </button>
           <span className={`save-state ${saving ? 'is-saving' : ''}`}>
             <Save size={13} strokeWidth={1.75} />
             {saving ? 'Saving…' : 'Saved'}
@@ -235,6 +246,21 @@ export default function EditorPane({
           </button>
           {menuOpen && (
             <div className="editor-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onTogglePin?.();
+                }}
+              >
+                {note.pinned ? (
+                  <PinOff size={14} strokeWidth={1.75} />
+                ) : (
+                  <Pin size={14} strokeWidth={1.75} />
+                )}
+                {note.pinned ? 'Unpin' : 'Pin'}
+              </button>
               <button type="button" role="menuitem" onClick={duplicate}>
                 <Copy size={14} strokeWidth={1.75} /> Duplicate
               </button>

@@ -167,7 +167,12 @@ async function listNotes(filter = {}) {
       }
       return true;
     })
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
 
   return Promise.all(
     filtered.map(async (n) => {
@@ -203,6 +208,9 @@ async function saveNote(input) {
     .map((t) => String(t).trim().toLowerCase())
     .filter(Boolean);
   const status = input.status ?? existing?.status ?? 'active';
+  const pinned = Boolean(
+    input.pinned !== undefined ? input.pinned : existing?.pinned,
+  );
 
   if (existing) {
     const prevBody = await fs.readFile(notePath(id), 'utf8').catch(() => '');
@@ -212,6 +220,7 @@ async function saveNote(input) {
       existing.title === title &&
       existing.notebookId === notebookId &&
       existing.status === status &&
+      Boolean(existing.pinned) === pinned &&
       sameTags &&
       prevBody === body
     ) {
@@ -226,6 +235,7 @@ async function saveNote(input) {
     notebookId,
     tags,
     status,
+    pinned,
     createdAt,
     updatedAt,
   };
@@ -263,6 +273,7 @@ async function createNote({
     notebookId,
     tags: [],
     status: 'active',
+    pinned: false,
     body: content,
   });
 }
