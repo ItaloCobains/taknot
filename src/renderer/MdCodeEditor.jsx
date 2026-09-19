@@ -573,6 +573,38 @@ export default function MdCodeEditor({
           </div>,
           document.body,
         )}
+      {latex &&
+        latexList.length > 0 &&
+        createPortal(
+          <div
+            className="slash-menu latex-menu"
+            ref={latexMenuRef}
+            style={{
+              top: latex.top,
+              left: latex.left,
+              maxHeight: latex.maxHeight || 280,
+            }}
+            role="listbox"
+          >
+            {latexList.map((cmd, i) => (
+              <button
+                key={cmd.id}
+                type="button"
+                role="option"
+                aria-selected={i === latexIndex}
+                className={`slash-item latex-item ${i === latexIndex ? 'active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyLatexCommand(cmd);
+                }}
+              >
+                <span className="slash-label">{cmd.label}</span>
+                <span className="slash-hint">{cmd.hint}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
       {slash &&
         slashList.length > 0 &&
         createPortal(
