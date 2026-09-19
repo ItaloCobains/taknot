@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Compartment, EditorState } from '@codemirror/state';
-import { vim } from '@replit/codemirror-vim';
+import { vim, getCM } from '@replit/codemirror-vim';
 import {
   EditorView,
   keymap,
@@ -88,6 +88,16 @@ const editorTheme = EditorView.theme(
   { dark: true },
 );
 
+
+function formatVimMode(mode) {
+  const m = String(mode || 'normal').toLowerCase();
+  if (m.includes('insert')) return { key: 'insert', label: 'INSERT' };
+  if (m.includes('replace')) return { key: 'replace', label: 'REPLACE' };
+  if (m.includes('visual')) return { key: 'visual', label: 'VISUAL' };
+  if (m.includes('command')) return { key: 'command', label: 'COMMAND' };
+  return { key: 'normal', label: 'NORMAL' };
+}
+
 export default function MdCodeEditor({
   noteId,
   value,
@@ -102,6 +112,7 @@ export default function MdCodeEditor({
   const slashMenuRef = useRef(null);
   const [slash, setSlash] = useState(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [vimStatus, setVimStatus] = useState(null);
   const slashList = useMemo(
     () => (slash ? filterSlashCommands(slash.query) : []),
     [slash],
@@ -252,10 +263,27 @@ export default function MdCodeEditor({
 
     const view = new EditorView({ state, parent: hostRef.current });
     viewRef.current = view;
+
+    const syncVimStatus = () => {
+      if (!vimMode) {
+        setVimStatus(null);
+        return;
+      }
+      const cm = getCM(view);
+      const mode = cm?.state?.vim?.mode || 'normal';
+      setVimStatus(formatVimMode(mode));
+    };
+    syncVimStatus();
+    const cm = getCM(view);
+    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    if (cm) cm.on('vim-mode-change', onMode);
+
     return () => {
+      if (cm) cm.off('vim-mode-change', onMode);
       view.destroy();
       viewRef.current = null;
       vimCompartmentRef.current = null;
+      setVimStatus(null);
     };
     // Remount when note changes so doc/history reset cleanly
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,10 +292,21 @@ export default function MdCodeEditor({
   useEffect(() => {
     const view = viewRef.current;
     const compartment = vimCompartmentRef.current;
-    if (!view || !compartment) return;
+    if (!view || !compartment) return undefined;
     view.dispatch({
       effects: compartment.reconfigure(vimMode ? vim() : []),
     });
+    if (!vimMode) {
+      setVimStatus(null);
+      return undefined;
+    }
+    const cm = getCM(view);
+    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    setVimStatus(formatVimMode(cm?.state?.vim?.mode || 'normal'));
+    if (cm) cm.on('vim-mode-change', onMode);
+    return () => {
+      if (cm) cm.off('vim-mode-change', onMode);
+    };
   }, [vimMode]);
 
   useEffect(() => {
@@ -300,6 +339,12 @@ export default function MdCodeEditor({
   return (
     <div className="md-code-wrap">
       <div className="md-code-editor" ref={hostRef} />
+      {vimMode && vimStatus && (
+        <div className={`vim-status vim-${vimStatus.key}`}>
+          <span className="vim-status-pill">{vimStatus.label}</span>
+          <span className="vim-status-hint">Esc normal · i insert · v visual</span>
+        </div>
+      )}
       {slash &&
         slashList.length > 0 &&
         createPortal(

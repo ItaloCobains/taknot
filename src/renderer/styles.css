@@ -1579,13 +1579,16 @@ button.tag-badge:hover .tag-badge-x {
 
 .md-code-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
 .md-code-editor {
-  height: 100%;
+  flex: 1;
   min-height: 0;
+  height: auto;
 }
 
 .md-code-editor .cm-editor {
@@ -1885,4 +1888,62 @@ textarea.editor {
 
 .section-icon {
   color: var(--accent-violet);
+}
+
+
+.vim-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(18, 20, 32, 0.92), rgba(28, 22, 40, 0.88));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.vim-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  border: 1px solid transparent;
+}
+
+.vim-status-hint {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.vim-normal .vim-status-pill {
+  color: #0b1220;
+  background: var(--accent-pink, #ff7eb6);
+  border-color: rgba(255, 126, 182, 0.7);
+  box-shadow: 0 0 18px rgba(255, 126, 182, 0.35);
+}
+
+.vim-insert .vim-status-pill {
+  color: #071018;
+  background: var(--accent-cyan, #5eead4);
+  border-color: rgba(94, 234, 212, 0.7);
+  box-shadow: 0 0 18px rgba(94, 234, 212, 0.3);
+}
+
+.vim-visual .vim-status-pill {
+  color: #12081c;
+  background: var(--accent-violet, #c4b5fd);
+  border-color: rgba(196, 181, 253, 0.7);
+  box-shadow: 0 0 18px rgba(196, 181, 253, 0.3);
+}
+
+.vim-replace .vim-status-pill,
+.vim-command .vim-status-pill {
+  color: #1a1200;
+  background: var(--accent-amber, #e5c07b);
+  border-color: rgba(229, 192, 123, 0.7);
 }
