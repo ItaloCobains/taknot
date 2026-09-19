@@ -10,6 +10,8 @@ import {
   Settings,
   Tag,
   X,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
@@ -147,12 +149,53 @@ export default function App() {
   const [movePicker, setMovePicker] = useState(null); // { id, x, y }
   const [tagMenu, setTagMenu] = useState(null); // { id, name, color, x, y }
   const [tagEdit, setTagEdit] = useState(null); // { id, name, color }
+  const [collapsedNotebook, setCollapsedNotebook] = useState(() => new Set())
   const [renamingNotebookId, setRenamingNotebookId] = useState(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [notebookDetail, setNotebookDetail] = useState(null);
   const saveBaselineRef = useRef(null);
 
   const notebookTree = useMemo(() => flattenNotebooks(notebooks), [notebooks]);
+
+  const childIdsByParent = useMemo(() => {
+    const map = new Map();
+
+    for (const nb of notebooks) {
+      const p = nb.parentId || null;
+
+      if (!map.has(p)) map.set(p, [])
+
+      map.get(p).push(nb.id)
+    }
+
+    return map
+  }, [notebooks])
+
+  function hasChildren(id) {
+    return (childIdsByParent.get(id) || []).length > 0
+  }
+
+  function isHiddenByCollapse(nb) {
+    let parentId = nb.parentId || null
+
+    while (parentId) {
+      if (collapsedNotebook.has(parentId)) return true
+      parentId = notebooks.find(n => n.id === parentId)?.parentId || null
+    }
+
+    return false
+  }
+
+  function toggleNotebookCollapse(id) {
+    setCollapsedNotebook((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+
+      return next
+    })
+  }
 
   function noteSnapshot(n) {
     return JSON.stringify({
@@ -623,11 +666,11 @@ export default function App() {
         setNote((prev) =>
           prev
             ? {
-                ...prev,
-                tags: (prev.tags || []).map((t) =>
-                  t === oldName ? saved.name : t,
-                ),
-              }
+              ...prev,
+              tags: (prev.tags || []).map((t) =>
+                t === oldName ? saved.name : t,
+              ),
+            }
             : prev,
         );
       }
@@ -647,11 +690,9 @@ export default function App() {
 
   return (
     <div
-      className={`app ${settingsOpen ? 'settings-open' : ''} ${
-        tagEdit || notebookDetail ? 'modal-open' : ''
-      } ${
-        nbMenu || tagMenu || iconPicker || movePicker ? 'menu-open' : ''
-      } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'}`}
+      className={`app ${settingsOpen ? 'settings-open' : ''} ${tagEdit || notebookDetail ? 'modal-open' : ''
+        } ${nbMenu || tagMenu || iconPicker || movePicker ? 'menu-open' : ''
+        } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'}`}
     >
       {nbMenu && (
         <div
@@ -856,9 +897,8 @@ export default function App() {
                   <button
                     key={c}
                     type="button"
-                    className={`tag-swatch ${
-                      (tagEdit.color || '').toLowerCase() === c ? 'active' : ''
-                    }`}
+                    className={`tag-swatch ${(tagEdit.color || '').toLowerCase() === c ? 'active' : ''
+                      }`}
                     style={{ background: c }}
                     aria-label={c}
                     title={c}
@@ -1022,13 +1062,13 @@ export default function App() {
               style={
                 addingUnderId
                   ? {
-                      paddingLeft:
-                        12 +
-                        ((notebookTree.find((n) => n.id === addingUnderId)
-                          ?.depth ?? 0) +
-                          1) *
-                          12,
-                    }
+                    paddingLeft:
+                      12 +
+                      ((notebookTree.find((n) => n.id === addingUnderId)
+                        ?.depth ?? 0) +
+                        1) *
+                      12,
+                  }
                   : undefined
               }
               onSubmit={(e) => {
@@ -1055,40 +1095,57 @@ export default function App() {
               />
             </form>
           )}
-          {notebookTree.map((nb) =>
-            renamingNotebookId === nb.id ? (
-              <form
-                key={nb.id}
-                className="inline-create"
-                style={{ paddingLeft: 12 + nb.depth * 12 }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  commitRenameNotebook();
+          {notebookTree.filter((nb) => !isHiddenByCollapse(nb)).map(nb => renamingNotebookId === nb.id ? (
+            <form
+              key={nb.id}
+              className="inline-create"
+              style={{ paddingLeft: 12 + nb.depth * 12 }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                commitRenameNotebook();
+              }}
+            >
+              <input
+                autoFocus
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onBlur={commitRenameNotebook}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setRenamingNotebookId(null);
                 }}
-              >
-                <input
-                  autoFocus
-                  value={renameDraft}
-                  onChange={(e) => setRenameDraft(e.target.value)}
-                  onBlur={commitRenameNotebook}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') setRenamingNotebookId(null);
+              />
+            </form>
+          ) : (
+            <button
+              key={nb.id}
+              type="button"
+              className={`nav-item ${isActive('notebook', nb.id) ? 'active' : ''}`}
+              style={{ paddingLeft: 12 + nb.depth * 12 }}
+              onClick={() => setFilter({ type: 'notebook', id: nb.id })}
+              onContextMenu={(e) => openNotebookMenu(e, nb)}
+            >
+              {hasChildren(nb.id) ? (
+                <span
+                  className='nv-chevron'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleNotebookCollapse(nb.id)
                   }}
-                />
-              </form>
-            ) : (
-              <button
-                key={nb.id}
-                type="button"
-                className={`nav-item ${isActive('notebook', nb.id) ? 'active' : ''}`}
-                style={{ paddingLeft: 12 + nb.depth * 12 }}
-                onClick={() => setFilter({ type: 'notebook', id: nb.id })}
-                onContextMenu={(e) => openNotebookMenu(e, nb)}
-              >
-                <NotebookIcon name={nb.icon} {...ICON} />
-                {nb.name}
-              </button>
-            ),
+                >
+                  {collapsedNotebook.has(nb.id) ? (
+                    <ChevronRight size={14} strokeWidth={2} />
+                  ) : (
+
+                    <ChevronDown size={14} strokeWidth={2} />
+                  )}
+                </span>
+              ) : (
+                <span className='nb-chevron-spacer' />
+              )}
+              <NotebookIcon name={nb.icon} {...ICON} />
+              {nb.name}
+            </button>
+          ),
           )}
         </div>
 
@@ -1259,9 +1316,8 @@ export default function App() {
                         <button
                           key={t.id}
                           type="button"
-                          className={`template-item ${
-                            selectedTemplateId === t.id ? 'selected' : ''
-                          }`}
+                          className={`template-item ${selectedTemplateId === t.id ? 'selected' : ''
+                            }`}
                           onClick={() => setSelectedTemplateId(t.id)}
                           onDoubleClick={() => createFromTemplate(t)}
                         >
