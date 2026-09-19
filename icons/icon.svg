@@ -1,0 +1,22 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="mark">
+<path id="Vector" d="M105.75 4.5H38.25C19.6104 4.5 4.5 19.6104 4.5 38.25V105.75C4.5 124.39 19.6104 139.5 38.25 139.5H105.75C124.39 139.5 139.5 124.39 139.5 105.75V38.25C139.5 19.6104 124.39 4.5 105.75 4.5Z" fill="#0B1220"/>
+<path id="Vector_2" d="M81 40.5H45C37.5442 40.5 31.5 46.5442 31.5 54V103.5C31.5 110.956 37.5442 117 45 117H81C88.4558 117 94.5 110.956 94.5 103.5V54C94.5 46.5442 88.4558 40.5 81 40.5Z" fill="#1A2438" stroke="#7AA2FF" stroke-width="3"/>
+<path id="Vector_3" d="M94.5 29.25H58.5C51.0442 29.25 45 35.2942 45 42.75V92.25C45 99.7058 51.0442 105.75 58.5 105.75H94.5C101.956 105.75 108 99.7058 108 92.25V42.75C108 35.2942 101.956 29.25 94.5 29.25Z" fill="url(#paint0_linear_0_4)"/>
+<g id="Vector_4" opacity="0.4">
+<path d="M58.5 51.75H94.5ZM58.5 65.25H87.75ZM58.5 78.75H81Z" fill="black"/>
+<path d="M58.5 51.75H94.5M58.5 65.25H87.75M58.5 78.75H81" stroke="#0B1220" stroke-width="4" stroke-linecap="round"/>
+</g>
+<path id="Vector_5" d="M101.25 118.125C110.57 118.125 118.125 110.57 118.125 101.25C118.125 91.9302 110.57 84.375 101.25 84.375C91.9302 84.375 84.375 91.9302 84.375 101.25C84.375 110.57 91.9302 118.125 101.25 118.125Z" stroke="#C4B5FD" stroke-width="5.5"/>
+<g id="Vector_6">
+<path d="M101.25 84.375V74.25Z" fill="black"/>
+<path d="M101.25 84.375V74.25" stroke="#C4B5FD" stroke-width="5.5" stroke-linecap="round"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_4" x1="45" y1="29.25" x2="120.08" y2="91.0809" gradientUnits="userSpaceOnUse">
+<stop stop-color="#7AA2FF"/>
+<stop offset="1" stop-color="#5EEAD4"/>
+</linearGradient>
+</defs>
+</svg>

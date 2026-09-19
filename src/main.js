@@ -15,6 +15,9 @@ if (require('electron-squirrel-startup')) {
 
 const createWindow = () => {
   const glassOk = Boolean(liquidGlass?.isGlassSupported?.());
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icons', 'icon.png')
+    : path.join(__dirname, '../../icons/icon.png');
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -22,6 +25,7 @@ const createWindow = () => {
     backgroundColor: glassOk ? '#00000000' : '#10121c',
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 18 },
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },

@@ -1,7 +1,7 @@
 {
   "name": "taknot",
   "productName": "taknot",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A beautiful markdown notes app for the desktop (Electron).",
   "main": ".vite/build/main.js",
   "private": true,
@@ -14,7 +14,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "Italo Brandão",
+    "name": "Italo Brand\u00e3o",
     "email": "italobrandao.contato@gmail.com"
   },
   "license": "MIT",

@@ -13,6 +13,9 @@ module.exports = {
     executableName: 'taknot',
     appBundleId: 'app.taknot',
     appCategoryType: 'public.app-category.productivity',
+    // Forge picks .icns / .ico / .png per platform
+    icon: './icons/icon',
+    extraResource: ['./icons'],
   },
   rebuildConfig: {},
   makers: [
