@@ -27,10 +27,11 @@ import {
 } from './slashCommands.js';
 
 const coolHighlight = HighlightStyle.define([
-  { tag: tags.heading, color: '#ff7eb6', fontWeight: '700' },
-  { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700' },
-  { tag: tags.heading2, color: '#ff7eb6', fontWeight: '700' },
-  { tag: tags.heading3, color: '#ff9ecd', fontWeight: '700' },
+  { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700', fontSize: '1.75em' },
+  { tag: tags.heading2, color: '#ff7eb6', fontWeight: '700', fontSize: '1.4em' },
+  { tag: tags.heading3, color: '#ff9ecd', fontWeight: '700', fontSize: '1.2em' },
+  { tag: tags.heading4, color: '#ff9ecd', fontWeight: '700', fontSize: '1.1em' },
+  { tag: tags.heading, color: '#ff7eb6', fontWeight: '700', fontSize: '1.2em' },
   { tag: tags.strong, color: '#c4b5fd', fontWeight: '700' },
   { tag: tags.emphasis, color: '#7dd3fc', fontStyle: 'italic' },
   { tag: tags.strikethrough, color: '#94a3b8', textDecoration: 'line-through' },
