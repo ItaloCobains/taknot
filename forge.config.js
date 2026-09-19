@@ -26,11 +26,32 @@ module.exports = {
   ],
   plugins: [
     {
+      name: '@electron-forge/plugin-vite',
+      config: {
+        build: [
+          {
+            entry: 'src/main.js',
+            config: 'vite.main.config.mjs',
+            target: 'main',
+          },
+          {
+            entry: 'src/preload.js',
+            config: 'vite.preload.config.mjs',
+            target: 'preload',
+          },
+        ],
+        renderer: [
+          {
+            name: 'main_window',
+            config: 'vite.renderer.config.mjs',
+          },
+        ],
+      },
+    },
+    {
       name: '@electron-forge/plugin-auto-unpack-natives',
       config: {},
     },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
