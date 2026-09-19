@@ -42,7 +42,9 @@ export const NOTEBOOK_ICON_MAP = {
 
 export const NOTEBOOK_ICON_NAMES = Object.keys(NOTEBOOK_ICON_MAP);
 
-export function NotebookIcon({ name, ...props }) {
+export function NotebookIcon({ name, className = '', ...props }) {
   const Icon = NOTEBOOK_ICON_MAP[name] || Book;
-  return <Icon {...props} />;
+  const key = NOTEBOOK_ICON_MAP[name] ? name : 'Book';
+  const merged = ['nb-icon', `nb-icon-${key}`, className].filter(Boolean).join(' ');
+  return <Icon className={merged} {...props} />;
 }

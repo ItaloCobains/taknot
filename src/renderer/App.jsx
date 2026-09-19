@@ -1327,7 +1327,7 @@ export default function App() {
               <button
                 key={n.id}
                 type="button"
-                className={`note-item ${selectedId === n.id ? 'selected' : ''}`}
+                className={`note-item status-${(n.status || 'active').replace('_', '-')} ${selectedId === n.id ? 'selected' : ''}`}
                 onClick={() => selectNote(n.id)}
               >
                 <div className="note-item-title">{n.title}</div>
