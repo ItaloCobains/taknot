@@ -1,7 +1,12 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
+const { generateUpdateManifests } = require('./scripts/generate-update-manifests.cjs');
+
 module.exports = {
+  hooks: {
+    postMake: async (_config, makeResults) => generateUpdateManifests(makeResults),
+  },
   packagerConfig: {
     asar: true,
     name: 'taknot',

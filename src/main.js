@@ -7,6 +7,7 @@ try {
 }
 const path = require('node:path');
 const vault = require('./vault');
+const { initAutoUpdate, checkForUpdates } = require('./autoUpdate');
 
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -107,7 +108,14 @@ app.whenReady().then(async () => {
     return win ? win.isMaximized() : false;
   });
 
+  ipcMain.handle('app:getVersion', () => app.getVersion());
+  ipcMain.handle('app:checkForUpdates', async () => {
+    await checkForUpdates({ manual: true });
+    return true;
+  });
+
   createWindow();
+  initAutoUpdate();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -28,6 +28,7 @@
     "@lezer/highlight": "^1.2.3",
     "@replit/codemirror-vim": "^6.4.0",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.47.0",
     "marked": "^18.0.13",
     "react": "^19.3.0",
@@ -53,5 +54,20 @@
   },
   "optionalDependencies": {
     "electron-liquid-glass": "^1.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ItaloCobains/taknot.git"
+  },
+  "build": {
+    "appId": "app.taknot",
+    "productName": "taknot",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ItaloCobains",
+        "repo": "taknot"
+      }
+    ]
   }
 }

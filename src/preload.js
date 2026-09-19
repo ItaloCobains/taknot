@@ -27,4 +27,6 @@ contextBridge.exposeInMainWorld('taknot', {
   listCustomTemplates: () => ipcRenderer.invoke('vault:listCustomTemplates'),
   saveTemplate: (tpl) => ipcRenderer.invoke('vault:saveTemplate', tpl),
   deleteTemplate: (id) => ipcRenderer.invoke('vault:deleteTemplate', id),
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
 });

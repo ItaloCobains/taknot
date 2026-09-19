@@ -62,6 +62,17 @@ O vault fica no `userData` do Electron, por exemplo no macOS:
   notes/*.md
 ```
 
+
+## Atualização automática
+
+O app verifica releases no GitHub ao abrir. Se houver versão nova, aparece um popup para **atualizar agora** ou **depois**. Depois do download, outro popup oferece reiniciar.
+
+Também dá para checar em **Settings → Verificar atualizações**.
+
+> **macOS:** updates silenciosos/instalação automática funcionam melhor com app **assinado** (Apple Developer). Sem assinatura, o fallback abre o instalador da release.
+
+Os arquivos `latest.yml` / `latest-mac.yml` / `latest-linux.yml` são gerados no `postMake` do Forge e publicados junto com os instaladores.
+
 ## Release
 
 Builds multiplataforma (macOS / Windows / Linux) rodam no GitHub Actions ao publicar um tag `v*`.

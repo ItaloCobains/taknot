@@ -146,6 +146,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
   const [vimMode, setVimMode] = useState(readStoredVimMode);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateChecking, setUpdateChecking] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [focusMode, setFocusMode] = useState(false);
@@ -228,6 +230,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(VIM_MODE_KEY, vimMode ? '1' : '0');
   }, [vimMode]);
+
+  useEffect(() => {
+    window.taknot?.getVersion?.().then(setAppVersion).catch(() => {});
+  }, []);
 
   const listFilter = useMemo(() => {
     const f = { query: query.trim() || undefined };
@@ -1179,6 +1185,34 @@ export default function App() {
                   onChange={(e) => setVimMode(e.target.checked)}
                 />
               </label>
+            </div>
+            <div className="settings-field" style={{ marginTop: 18 }}>
+              <label>
+                Atualizações
+                <strong>{appVersion ? `v${appVersion}` : '…'}</strong>
+              </label>
+              <button
+                type="button"
+                className="settings-update-btn"
+                disabled={updateChecking}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={async () => {
+                  setUpdateChecking(true);
+                  try {
+                    await window.taknot.checkForUpdates();
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setUpdateChecking(false);
+                  }
+                }}
+              >
+                {updateChecking ? 'Verificando…' : 'Verificar atualizações'}
+              </button>
+              <p className="settings-hint">
+                Quando houver versão nova no GitHub, o app avisa e você pode
+                atualizar sem baixar manualmente.
+              </p>
             </div>
           </div>
         </>
