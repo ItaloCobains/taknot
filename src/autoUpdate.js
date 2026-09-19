@@ -1,5 +1,11 @@
 const { app, dialog, shell, net } = require('electron');
-const { autoUpdater } = require('electron-updater');
+
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch (err) {
+  console.warn('[taknot] electron-updater unavailable', err?.message || err);
+}
 
 const REPO = { owner: 'ItaloCobains', name: 'taknot' };
 const CHECK_DELAY_MS = 5_000;
@@ -143,6 +149,9 @@ function setupAutoUpdater() {
 }
 
 async function checkForUpdates({ manual = false } = {}) {
+  if (!autoUpdater) {
+    return { ok: false, reason: 'unavailable' };
+  }
   if (checking) return;
   checking = true;
   manualCheck = manual;
@@ -176,6 +185,7 @@ async function checkForUpdates({ manual = false } = {}) {
 }
 
 function initAutoUpdate() {
+  if (!autoUpdater) return;
   if (isDev()) return;
   setupAutoUpdater();
   setTimeout(() => {
