@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
 const liquidGlass = require('electron-liquid-glass');
 const path = require('node:path');
 const vault = require('./vault');
@@ -48,20 +48,37 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('vault:listNotebooks', () => vault.listNotebooks());
   ipcMain.handle('vault:listTags', () => vault.listTags());
+  ipcMain.handle('vault:saveTag', (_e, tag) => vault.saveTag(tag));
+  ipcMain.handle('vault:deleteTag', (_e, id) => vault.deleteTag(id));
   ipcMain.handle('vault:listNotes', (_e, filter) => vault.listNotes(filter));
   ipcMain.handle('vault:getNote', (_e, id) => vault.getNote(id));
   ipcMain.handle('vault:saveNote', (_e, note) => vault.saveNote(note));
   ipcMain.handle('vault:createNote', (_e, opts) => vault.createNote(opts));
-  ipcMain.handle('vault:createNotebook', (_e, name) => vault.createNotebook(name));
+  ipcMain.handle('vault:createNotebook', (_e, name, parentId) =>
+    vault.createNotebook(name, parentId),
+  );
   ipcMain.handle('vault:renameNotebook', (_e, id, name) =>
     vault.renameNotebook(id, name),
   );
-  ipcMain.handle('vault:deleteNotebook', (_e, id) => vault.deleteNotebook(id));
-  ipcMain.handle('vault:getNotebookExport', (_e, id) =>
-    vault.getNotebookExport(id),
+  ipcMain.handle('vault:setNotebookIcon', (_e, id, icon) =>
+    vault.setNotebookIcon(id, icon),
   );
+  ipcMain.handle('vault:moveNotebook', (_e, id, parentId) =>
+    vault.moveNotebook(id, parentId),
+  );
+  ipcMain.handle('vault:deleteNotebook', (_e, id) => vault.deleteNotebook(id));
   ipcMain.handle('vault:duplicateNote', (_e, id) => vault.duplicateNote(id));
   ipcMain.handle('vault:deleteNote', (_e, id) => vault.deleteNote(id));
+  ipcMain.handle('clipboard:writeText', (_e, text) => {
+    clipboard.writeText(String(text ?? ''));
+    return true;
+  });
+  ipcMain.handle('shell:openExternal', async (_e, url) => {
+    const href = String(url || '');
+    if (!/^https?:\/\//i.test(href)) return false;
+    await shell.openExternal(href);
+    return true;
+  });
 
   ipcMain.handle('window:toggleMaximize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

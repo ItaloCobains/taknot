@@ -19,9 +19,36 @@ function now() {
   return new Date().toISOString();
 }
 
+const DEFAULT_TAG_COLOR = '#8b93a7';
+
+function ensureMetaTags(meta) {
+  if (!Array.isArray(meta.tags)) meta.tags = [];
+  const byName = new Map(meta.tags.map((t) => [t.name, t]));
+  for (const note of meta.notes) {
+    for (const name of note.tags || []) {
+      if (!byName.has(name)) {
+        const tag = {
+          id: `tag_${randomUUID()}`,
+          name,
+          color: DEFAULT_TAG_COLOR,
+        };
+        meta.tags.push(tag);
+        byName.set(name, tag);
+      }
+    }
+  }
+  return meta;
+}
+
 async function readMeta() {
   const raw = await fs.readFile(metaPath(), 'utf8');
-  return JSON.parse(raw);
+  const meta = JSON.parse(raw);
+  const before = meta.tags?.length ?? -1;
+  ensureMetaTags(meta);
+  if ((meta.tags?.length ?? 0) !== before) {
+    await writeMeta(meta);
+  }
+  return meta;
 }
 
 async function writeMeta(meta) {
@@ -39,7 +66,8 @@ async function ensureVault() {
     const createdAt = now();
     const noteId = 'note_welcome';
     const meta = {
-      notebooks: [{ id: 'nb_inbox', name: 'Inbox', parentId: null }],
+      notebooks: [{ id: 'nb_inbox', name: 'Inbox', parentId: null, icon: 'Inbox' }],
+      tags: [{ id: 'tag_taknot', name: 'taknot', color: '#61afef' }],
       notes: [
         {
           id: noteId,
@@ -68,11 +96,49 @@ async function listNotebooks() {
 
 async function listTags() {
   const meta = await readMeta();
-  const tags = new Set();
-  for (const note of meta.notes) {
-    for (const tag of note.tags || []) tags.add(tag);
+  return [...meta.tags].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function saveTag(input) {
+  const meta = await readMeta();
+  const name = String(input.name || '').trim().toLowerCase();
+  if (!name) throw new Error('Tag name required');
+  const color = input.color || DEFAULT_TAG_COLOR;
+
+  let tag = input.id ? meta.tags.find((t) => t.id === input.id) : null;
+  if (tag) {
+    const oldName = tag.name;
+    if (name !== oldName) {
+      if (meta.tags.some((t) => t.name === name && t.id !== tag.id)) {
+        throw new Error('Tag already exists');
+      }
+      for (const note of meta.notes) {
+        note.tags = (note.tags || []).map((t) => (t === oldName ? name : t));
+      }
+      tag.name = name;
+    }
+    tag.color = color;
+  } else {
+    if (meta.tags.some((t) => t.name === name)) {
+      throw new Error('Tag already exists');
+    }
+    tag = { id: `tag_${randomUUID()}`, name, color };
+    meta.tags.push(tag);
   }
-  return [...tags].sort();
+
+  await writeMeta(meta);
+  return tag;
+}
+
+async function deleteTag(id) {
+  const meta = await readMeta();
+  const tag = meta.tags.find((t) => t.id === id);
+  if (!tag) throw new Error('Tag not found');
+  meta.tags = meta.tags.filter((t) => t.id !== id);
+  for (const note of meta.notes) {
+    note.tags = (note.tags || []).filter((t) => t !== tag.name);
+  }
+  await writeMeta(meta);
 }
 
 function countTasks(body) {
@@ -122,17 +188,51 @@ async function saveNote(input) {
   const id = input.id || randomUUID();
   const existing = meta.notes.find((n) => n.id === id);
   const createdAt = existing?.createdAt || now();
-  const updatedAt = now();
+  const body =
+    input.body ??
+    (existing ? await fs.readFile(notePath(id), 'utf8').catch(() => '') : '');
+  const title = input.title ?? existing?.title ?? 'Untitled';
+  const notebookId = input.notebookId ?? existing?.notebookId ?? 'nb_inbox';
+  const tags = (input.tags ?? existing?.tags ?? [])
+    .map((t) => String(t).trim().toLowerCase())
+    .filter(Boolean);
+  const status = input.status ?? existing?.status ?? 'active';
 
+  if (existing) {
+    const prevBody = await fs.readFile(notePath(id), 'utf8').catch(() => '');
+    const sameTags =
+      JSON.stringify(existing.tags || []) === JSON.stringify(tags);
+    if (
+      existing.title === title &&
+      existing.notebookId === notebookId &&
+      existing.status === status &&
+      sameTags &&
+      prevBody === body
+    ) {
+      return { ...existing, body: prevBody };
+    }
+  }
+
+  const updatedAt = now();
   const noteMeta = {
     id,
-    title: input.title ?? existing?.title ?? 'Untitled',
-    notebookId: input.notebookId ?? existing?.notebookId ?? 'nb_inbox',
-    tags: input.tags ?? existing?.tags ?? [],
-    status: input.status ?? existing?.status ?? 'active',
+    title,
+    notebookId,
+    tags,
+    status,
     createdAt,
     updatedAt,
   };
+
+  for (const name of noteMeta.tags) {
+    if (!meta.tags.some((t) => t.name === name)) {
+      meta.tags.push({
+        id: `tag_${randomUUID()}`,
+        name,
+        color: DEFAULT_TAG_COLOR,
+      });
+    }
+  }
 
   if (existing) {
     Object.assign(existing, noteMeta);
@@ -140,7 +240,6 @@ async function saveNote(input) {
     meta.notes.push(noteMeta);
   }
 
-  const body = input.body ?? (existing ? await fs.readFile(notePath(id), 'utf8').catch(() => '') : '');
   await fs.writeFile(notePath(id), body, 'utf8');
   await writeMeta(meta);
   return { ...noteMeta, body };
@@ -168,29 +267,23 @@ function titleFromBody(body) {
   return line.replace(/^#+\s*/, '').trim();
 }
 
-async function createNotebook(name) {
+async function createNotebook(name, parentId = null) {
   const trimmed = String(name || '').trim();
   if (!trimmed) throw new Error('Notebook name required');
   const meta = await readMeta();
+  const parent = parentId || null;
+  if (parent && !meta.notebooks.some((n) => n.id === parent)) {
+    throw new Error('Parent notebook not found');
+  }
   const notebook = {
     id: `nb_${randomUUID()}`,
     name: trimmed,
-    parentId: null,
+    parentId: parent,
+    icon: 'Book',
   };
   meta.notebooks.push(notebook);
   await writeMeta(meta);
   return notebook;
-}
-
-async function duplicateNote(id) {
-  const note = await getNote(id);
-  return saveNote({
-    title: `${note.title} (copy)`,
-    notebookId: note.notebookId,
-    tags: [...(note.tags || [])],
-    status: note.status,
-    body: note.body,
-  });
 }
 
 async function renameNotebook(id, name) {
@@ -204,29 +297,55 @@ async function renameNotebook(id, name) {
   return nb;
 }
 
+async function setNotebookIcon(id, icon) {
+  const meta = await readMeta();
+  const nb = meta.notebooks.find((n) => n.id === id);
+  if (!nb) throw new Error('Notebook not found');
+  nb.icon = icon || 'Book';
+  await writeMeta(meta);
+  return nb;
+}
+
+async function moveNotebook(id, parentId) {
+  if (id === 'nb_inbox') throw new Error('Cannot move Inbox');
+  const meta = await readMeta();
+  const nb = meta.notebooks.find((n) => n.id === id);
+  if (!nb) throw new Error('Notebook not found');
+  const parent = parentId || null;
+  if (parent === id) throw new Error('Cannot move into itself');
+  if (parent) {
+    if (!meta.notebooks.some((n) => n.id === parent)) {
+      throw new Error('Parent notebook not found');
+    }
+    // prevent cycles: parent cannot be a descendant of id
+    let cursor = parent;
+    const seen = new Set();
+    while (cursor) {
+      if (cursor === id) throw new Error('Cannot move into a descendant');
+      if (seen.has(cursor)) break;
+      seen.add(cursor);
+      cursor = meta.notebooks.find((n) => n.id === cursor)?.parentId || null;
+    }
+  }
+  nb.parentId = parent;
+  await writeMeta(meta);
+  return nb;
+}
+
 async function deleteNotebook(id) {
   if (id === 'nb_inbox') throw new Error('Cannot delete Inbox');
   const meta = await readMeta();
-  if (!meta.notebooks.some((n) => n.id === id)) {
-    throw new Error('Notebook not found');
-  }
+  const target = meta.notebooks.find((n) => n.id === id);
+  if (!target) throw new Error('Notebook not found');
+  const fallbackParent = target.parentId || null;
   meta.notebooks = meta.notebooks.filter((n) => n.id !== id);
+  for (const n of meta.notebooks) {
+    if (n.parentId === id) n.parentId = fallbackParent;
+  }
   for (const note of meta.notes) {
     if (note.notebookId === id) note.notebookId = 'nb_inbox';
   }
   await writeMeta(meta);
-}
-
-async function getNotebookExport(id) {
-  const meta = await readMeta();
-  const nb = meta.notebooks.find((n) => n.id === id);
-  if (!nb) throw new Error('Notebook not found');
-  const notes = [];
-  for (const info of meta.notes.filter((n) => n.notebookId === id)) {
-    const body = await fs.readFile(notePath(info.id), 'utf8').catch(() => '');
-    notes.push({ ...info, body });
-  }
-  return { notebook: nb, notes };
 }
 
 async function deleteNote(id) {
@@ -234,6 +353,17 @@ async function deleteNote(id) {
   meta.notes = meta.notes.filter((n) => n.id !== id);
   await writeMeta(meta);
   await fs.unlink(notePath(id)).catch(() => {});
+}
+
+async function duplicateNote(id) {
+  const note = await getNote(id);
+  return saveNote({
+    title: `${note.title} (copy)`,
+    notebookId: note.notebookId,
+    tags: [...(note.tags || [])],
+    status: note.status,
+    body: note.body,
+  });
 }
 
 module.exports = {
@@ -246,9 +376,12 @@ module.exports = {
   createNote,
   createNotebook,
   renameNotebook,
+  setNotebookIcon,
+  moveNotebook,
   deleteNotebook,
-  getNotebookExport,
   duplicateNote,
   deleteNote,
+  saveTag,
+  deleteTag,
   vaultRoot,
 };

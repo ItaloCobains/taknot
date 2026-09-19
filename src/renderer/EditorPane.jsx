@@ -5,10 +5,6 @@ import {
   ArrowRight,
   BookOpen,
   ChevronDown,
-  CircleCheck,
-  CircleMinus,
-  CirclePlay,
-  CircleX,
   Clock3,
   Columns2,
   Copy,
@@ -16,6 +12,7 @@ import {
   FileDown,
   Folder,
   Hash,
+  ListTodo,
   Maximize2,
   Minimize2,
   MoreVertical,
@@ -23,14 +20,13 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
+import MdCodeEditor from './MdCodeEditor.jsx';
+import TagBadge from './TagBadge.jsx';
+import StatusBadge from './StatusBadge.jsx';
+import { STATUSES } from './statuses.js';
+import { normalizeMarkdown, enablePreviewTasks, toggleTaskAt } from './markdown.js';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
-const STATUSES = [
-  { id: 'active', label: 'Active', Icon: CirclePlay },
-  { id: 'on_hold', label: 'On Hold', Icon: CircleMinus },
-  { id: 'completed', label: 'Completed', Icon: CircleCheck },
-  { id: 'dropped', label: 'Dropped', Icon: CircleX },
-];
 
 function formatStamp(iso) {
   if (!iso) return '—';
@@ -42,6 +38,7 @@ function formatStamp(iso) {
 export default function EditorPane({
   note,
   notebookName,
+  tagColors = {},
   saving,
   focusMode,
   canGoBack,
@@ -57,30 +54,35 @@ export default function EditorPane({
   const [tagDraft, setTagDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const editorRef = useRef(null);
+  const editorHostRef = useRef(null);
+  const editorApiRef = useRef(null);
   const previewRef = useRef(null);
   const syncingRef = useRef(false);
 
-  function syncScroll(from, to) {
-    if (!from || !to || syncingRef.current) return;
-    const fromMax = from.scrollHeight - from.clientHeight;
+  function onEditorScrollRatio(ratio) {
+    if (viewMode !== 'split' || syncingRef.current) return;
+    const to = previewRef.current;
+    if (!to) return;
     const toMax = to.scrollHeight - to.clientHeight;
-    if (fromMax <= 0 || toMax <= 0) return;
+    if (toMax <= 0) return;
     syncingRef.current = true;
-    to.scrollTop = (from.scrollTop / fromMax) * toMax;
+    to.scrollTop = ratio * toMax;
     requestAnimationFrame(() => {
       syncingRef.current = false;
     });
   }
 
-  function onEditorScroll() {
-    if (viewMode !== 'split') return;
-    syncScroll(editorRef.current, previewRef.current);
-  }
-
   function onPreviewScroll() {
-    if (viewMode !== 'split') return;
-    syncScroll(previewRef.current, editorRef.current);
+    if (viewMode !== 'split' || syncingRef.current) return;
+    const from = previewRef.current;
+    if (!from || !editorApiRef.current?.setScrollRatio) return;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    if (fromMax <= 0) return;
+    syncingRef.current = true;
+    editorApiRef.current.setScrollRatio(from.scrollTop / fromMax);
+    requestAnimationFrame(() => {
+      syncingRef.current = false;
+    });
   }
 
   useEffect(() => {
@@ -92,9 +94,20 @@ export default function EditorPane({
   }, []);
 
   const previewHtml = useMemo(
-    () => marked.parse(note?.body || '', { async: false }),
+    () =>
+      enablePreviewTasks(
+        marked.parse(normalizeMarkdown(note?.body || ''), { async: false }),
+      ),
     [note?.body],
   );
+
+  const tasks = useMemo(() => {
+    const text = note?.body || '';
+    const total = (text.match(/^\s*[-*+]\s+\[[ xX]\]/gm) || []).length;
+    if (!total) return null;
+    const done = (text.match(/^\s*[-*+]\s+\[[xX]\]/gm) || []).length;
+    return { total, done };
+  }, [note?.body]);
 
   function patch(partial) {
     onChange({ ...note, ...partial });
@@ -123,7 +136,11 @@ export default function EditorPane({
 
   async function copyId() {
     setMenuOpen(false);
-    await navigator.clipboard.writeText(note.id);
+    try {
+      await window.taknot.writeClipboard(note.id);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   function exportMarkdown() {
@@ -253,7 +270,7 @@ export default function EditorPane({
           </button>
 
           <label className="meta-chip status-chip">
-            <span>Status</span>
+            <StatusBadge status={note.status} />
             <select
               value={note.status}
               onChange={(e) => patch({ status: e.target.value })}
@@ -270,16 +287,12 @@ export default function EditorPane({
 
           <div className="tag-row">
             {note.tags.map((tag) => (
-              <button
+              <TagBadge
                 key={tag}
-                type="button"
-                className="tag-chip"
-                onClick={() => removeTag(tag)}
-                title="Remove tag"
-              >
-                #{tag}
-                <span aria-hidden>×</span>
-              </button>
+                name={tag}
+                color={tagColors[tag]}
+                onRemove={() => removeTag(tag)}
+              />
             ))}
             <input
               className="tag-input"
@@ -299,19 +312,39 @@ export default function EditorPane({
 
       <div className={`editor-split mode-${viewMode}`}>
         {(viewMode === 'edit' || viewMode === 'split') && (
-          <textarea
-            ref={editorRef}
-            className="editor"
-            value={note.body}
-            onChange={(e) => patch({ body: e.target.value })}
-            onScroll={onEditorScroll}
-            spellCheck={false}
-            placeholder={"Type '/' for commands…"}
-          />
+          <div className="md-editor" ref={editorHostRef}>
+            <MdCodeEditor
+              noteId={note.id}
+              value={note.body}
+              onChange={(body) => patch({ body })}
+              onScrollRatio={onEditorScrollRatio}
+              apiRef={editorApiRef}
+            />
+          </div>
         )}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className="preview" ref={previewRef} onScroll={onPreviewScroll}>
             <div className="meta-cards">
+              {tasks && (
+                <div className="meta-card progress-card">
+                  <ListTodo size={14} strokeWidth={1.75} />
+                  <div>
+                    <div className="meta-label">Progress</div>
+                    <div className="meta-progress">
+                      <span className="task-bar" aria-hidden>
+                        <span
+                          style={{
+                            width: `${Math.round((tasks.done / tasks.total) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="meta-value">
+                        {tasks.done} of {tasks.total} tasks
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="meta-card">
                 <Clock3 size={14} strokeWidth={1.75} />
                 <div>
@@ -330,13 +363,33 @@ export default function EditorPane({
             {note.tags.length > 0 && (
               <div className="preview-tags">
                 {note.tags.map((tag) => (
-                  <span key={tag}>#{tag}</span>
+                  <TagBadge key={tag} name={tag} color={tagColors[tag]} />
                 ))}
               </div>
             )}
             <div
               className="markdown"
               dangerouslySetInnerHTML={{ __html: previewHtml }}
+              onClick={(e) => {
+                const box = e.target.closest?.('input[type="checkbox"][data-task]');
+                if (box) {
+                  e.preventDefault();
+                  const idx = Number(box.getAttribute('data-task'));
+                  if (Number.isFinite(idx)) {
+                    patch({ body: toggleTaskAt(note.body, idx) });
+                  }
+                  return;
+                }
+                const a = e.target.closest?.('a');
+                if (!a?.href) return;
+                e.preventDefault();
+                window.taknot.openExternal(a.href).catch(console.error);
+              }}
+              onChange={(e) => {
+                // Keep controlled via body; swallow native toggle flash
+                const box = e.target.closest?.('input[type="checkbox"][data-task]');
+                if (box) e.preventDefault();
+              }}
             />
           </div>
         )}
