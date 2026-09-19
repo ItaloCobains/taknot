@@ -24,6 +24,7 @@ const ICON = { size: 15, strokeWidth: 1.75 };
 const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
 const TRANSLUCENCY_KEY = 'taknot.translucency';
 const DEFAULT_TRANSLUCENCY = 55;
+const VIM_MODE_KEY = 'taknot.vimMode';
 
 /** Depth-first tree order for sidebar nesting. */
 function flattenNotebooks(notebooks) {
@@ -72,6 +73,10 @@ function readStoredTranslucency() {
   const raw = Number(localStorage.getItem(TRANSLUCENCY_KEY));
   if (Number.isFinite(raw)) return Math.min(100, Math.max(0, raw));
   return DEFAULT_TRANSLUCENCY;
+}
+
+function readStoredVimMode() {
+  return localStorage.getItem(VIM_MODE_KEY) === '1';
 }
 
 function applyTranslucency(pct) {
@@ -139,6 +144,7 @@ export default function App() {
   const [templateEditor, setTemplateEditor] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
+  const [vimMode, setVimMode] = useState(readStoredVimMode);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [focusMode, setFocusMode] = useState(false);
@@ -214,6 +220,10 @@ export default function App() {
     applyTranslucency(translucency);
     localStorage.setItem(TRANSLUCENCY_KEY, String(translucency));
   }, [translucency]);
+
+  useEffect(() => {
+    localStorage.setItem(VIM_MODE_KEY, vimMode ? '1' : '0');
+  }, [vimMode]);
 
   const listFilter = useMemo(() => {
     const f = { query: query.trim() || undefined };
@@ -1064,6 +1074,23 @@ export default function App() {
                 legível.
               </p>
             </div>
+            <div className="settings-field" style={{ marginTop: 18 }}>
+              <label className="settings-toggle" htmlFor="vim-mode">
+                <span>
+                  Vim mode
+                  <span className="settings-hint" style={{ display: 'block', margin: 0 }}>
+                    Atalhos Vim no editor de markdown (hjkl, modes, etc.).
+                  </span>
+                </span>
+                <input
+                  id="vim-mode"
+                  type="checkbox"
+                  checked={vimMode}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onChange={(e) => setVimMode(e.target.checked)}
+                />
+              </label>
+            </div>
           </div>
         </>
       )}
@@ -1501,6 +1528,7 @@ export default function App() {
             tagColors={colorsByTag}
             saving={saving}
             focusMode={focusMode}
+            vimMode={vimMode}
             canGoBack={historyIndex > 0}
             canGoForward={historyIndex >= 0 && historyIndex < history.length - 1}
             onBack={goBack}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
+import { vim } from '@replit/codemirror-vim';
 import {
   EditorView,
   keymap,
@@ -93,9 +94,11 @@ export default function MdCodeEditor({
   onChange,
   onScrollRatio,
   apiRef,
+  vimMode = false,
 }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
+  const vimCompartmentRef = useRef(null);
   const slashMenuRef = useRef(null);
   const [slash, setSlash] = useState(null);
   const [slashIndex, setSlashIndex] = useState(0);
@@ -177,6 +180,9 @@ export default function MdCodeEditor({
       return true;
     };
 
+    const vimCompartment = new Compartment();
+    vimCompartmentRef.current = vimCompartment;
+
     const state = EditorState.create({
       doc: value || '',
       extensions: [
@@ -184,6 +190,7 @@ export default function MdCodeEditor({
         drawSelection(),
         history(),
         markdown(),
+        vimCompartment.of(vimMode ? vim() : []),
         syntaxHighlighting(coolHighlight),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         editorTheme,
@@ -248,10 +255,20 @@ export default function MdCodeEditor({
     return () => {
       view.destroy();
       viewRef.current = null;
+      vimCompartmentRef.current = null;
     };
     // Remount when note changes so doc/history reset cleanly
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    const compartment = vimCompartmentRef.current;
+    if (!view || !compartment) return;
+    view.dispatch({
+      effects: compartment.reconfigure(vimMode ? vim() : []),
+    });
+  }, [vimMode]);
 
   useEffect(() => {
     const view = viewRef.current;

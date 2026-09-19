@@ -1800,3 +1800,22 @@ textarea.editor {
   width: 16px;
   flex-shrink: 0;
 }
+
+
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.settings-toggle input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #5a8cff;
+  cursor: pointer;
+}

@@ -46,6 +46,7 @@ export default function EditorPane({
   onBack,
   onForward,
   onToggleFocus,
+  vimMode = false,
   onChange,
   onDelete,
   onDuplicated,
@@ -319,6 +320,7 @@ export default function EditorPane({
               onChange={(body) => patch({ body })}
               onScrollRatio={onEditorScrollRatio}
               apiRef={editorApiRef}
+              vimMode={vimMode}
             />
           </div>
         )}
