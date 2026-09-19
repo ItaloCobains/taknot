@@ -1,3 +1,13 @@
+import { marked } from 'marked';
+import markedKatex from 'marked-katex-extension';
+
+marked.use(
+  markedKatex({
+    throwOnError: false,
+    nonStandard: true,
+  }),
+);
+
 /** Fix common link/image markdown mistakes before rendering. */
 export function normalizeMarkdown(source) {
   let text = source || '';
@@ -58,4 +68,15 @@ export function toggleTaskAt(body, index) {
       return `${prefix}[${next}]`;
     },
   );
+}
+
+/**
+ * Render note markdown → HTML (KaTeX math, tasks, wiki-links).
+ * Supports `$inline$`, `$$display$$`, and non-standard `$x$` without spaces.
+ */
+export function renderMarkdown(source, { wiki = true, tasks = true } = {}) {
+  let html = marked.parse(normalizeMarkdown(source || ''), { async: false });
+  if (tasks) html = enablePreviewTasks(html);
+  if (wiki) html = enableWikiLinks(html);
+  return html;
 }

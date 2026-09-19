@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { marked } from 'marked';
 import {
   ListTodo,
   NotebookPen,
@@ -20,6 +19,7 @@ import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
 import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
+import { renderMarkdown } from './markdown.js';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
@@ -268,10 +268,10 @@ export default function App() {
 
   const templatePreviewHtml = useMemo(
     () =>
-      marked.parse(
-        selectedTemplate.body || '_Blank note_',
-        { async: false },
-      ),
+      renderMarkdown(selectedTemplate.body || '_Blank note_', {
+        wiki: false,
+        tasks: false,
+      }),
     [selectedTemplate],
   );
 

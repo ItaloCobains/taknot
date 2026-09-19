@@ -1,7 +1,7 @@
 {
   "name": "taknot",
   "productName": "taknot",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "A beautiful markdown notes app for the desktop (Electron).",
   "main": ".vite/build/main.js",
   "private": true,
@@ -29,8 +29,10 @@
     "@replit/codemirror-vim": "^6.4.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.8.9",
+    "katex": "^0.18.7",
     "lucide-react": "^1.47.0",
     "marked": "^18.0.13",
+    "marked-katex-extension": "^5.1.13",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

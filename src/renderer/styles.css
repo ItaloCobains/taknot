@@ -2005,3 +2005,19 @@ textarea.editor {
   opacity: 0.6;
   cursor: default;
 }
+
+
+/* KaTeX in markdown preview */
+.markdown .katex {
+  font-size: 1.05em;
+  color: inherit;
+}
+.markdown .katex-display {
+  margin: 0.85em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15em 0;
+}
+.markdown .katex-error {
+  color: #e06c75;
+}

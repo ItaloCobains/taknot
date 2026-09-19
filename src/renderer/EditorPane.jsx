@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { marked } from 'marked';
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,7 +25,7 @@ import MdCodeEditor from './MdCodeEditor.jsx';
 import TagBadge from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
-import { normalizeMarkdown, enablePreviewTasks, enableWikiLinks, toggleTaskAt } from './markdown.js';
+import { renderMarkdown, toggleTaskAt } from './markdown.js';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
@@ -100,12 +99,7 @@ export default function EditorPane({
   }, []);
 
   const previewHtml = useMemo(
-    () =>
-      enableWikiLinks(
-        enablePreviewTasks(
-          marked.parse(normalizeMarkdown(note?.body || ''), { async: false }),
-        ),
-      ),
+    () => renderMarkdown(note?.body || ''),
     [note?.body],
   );
 
