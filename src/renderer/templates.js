@@ -141,6 +141,11 @@ export const TEMPLATES = [
   },
 ];
 
+export const BUILTIN_TEMPLATES = TEMPLATES.map(t => ({
+  ...t,
+  builtin: true
+}))
+
 export function groupTemplates(templates) {
   const map = new Map();
   for (const t of templates) {

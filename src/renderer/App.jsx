@@ -13,7 +13,7 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
-import { TEMPLATES, groupTemplates } from './templates.js';
+import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
@@ -135,6 +135,8 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [templateQuery, setTemplateQuery] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('blank');
+  const [customTemplates, setCustomTemplates] = useState([])
+  const [templateEditor, setTemplateEditor] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
   const [history, setHistory] = useState([]);
@@ -221,15 +223,20 @@ export default function App() {
     return f;
   }, [filter, query]);
 
+  const allTemplates = useMemo(
+    () => [...BUILTIN_TEMPLATES, ...customTemplates],
+    [customTemplates]
+  )
+
   const filteredTemplates = useMemo(() => {
     const q = templateQuery.trim().toLowerCase();
-    if (!q) return TEMPLATES;
-    return TEMPLATES.filter(
+    if (!q) return allTemplates;
+    return allTemplates.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
         t.category.toLowerCase().includes(q),
     );
-  }, [templateQuery]);
+  }, [templateQuery, allTemplates]);
 
   const templateGroups = useMemo(
     () => groupTemplates(filteredTemplates),
@@ -237,7 +244,7 @@ export default function App() {
   );
 
   const selectedTemplate =
-    TEMPLATES.find((t) => t.id === selectedTemplateId) || TEMPLATES[0];
+    allTemplates.find((t) => t.id === selectedTemplateId) || allTemplates[0];
 
   const templatePreviewHtml = useMemo(
     () =>
@@ -249,12 +256,14 @@ export default function App() {
   );
 
   const refreshMeta = useCallback(async () => {
-    const [nbs, tgs] = await Promise.all([
+    const [nbs, tgs, tpls] = await Promise.all([
       window.taknot.listNotebooks(),
       window.taknot.listTags(),
+      window.taknot.listCustomTemplates(),
     ]);
     setNotebooks(nbs);
     setTags(tgs);
+    setCustomTemplates(tpls)
   }, []);
 
   const refreshNotes = useCallback(async () => {
@@ -378,8 +387,8 @@ export default function App() {
   async function createFromTemplate(template) {
     const t =
       template ||
-      TEMPLATES.find((item) => item.id === selectedTemplateId) ||
-      TEMPLATES[0];
+      allTemplates.find((item) => item.id === selectedTemplateId) ||
+      allTemplates[0];
     const notebookId =
       filter.type === 'notebook' ? filter.id : 'nb_inbox';
     try {
@@ -393,6 +402,56 @@ export default function App() {
       selectNote(created.id);
     } catch (err) {
       console.error('Failed to create note', err);
+    }
+  }
+
+  function openNewTemplate() {
+    setTemplateEditor({
+      name: '',
+      category: 'Custom',
+      body: '# \n\n',
+    });
+  }
+
+  function openEditTemplate(t) {
+    if (!t || t.builtin) return;
+    setTemplateEditor({
+      id: t.id,
+      name: t.name,
+      category: t.category,
+      body: t.body || '',
+    });
+  }
+
+  async function saveTemplateEditor() {
+    if (!templateEditor) return
+    const name = templateEditor.name.trim()
+    if (!name) return
+    try {
+      const saved = await window.taknot.saveTemplate({
+        id: templateEditor.id,
+        name,
+        category: templateEditor.category.trim() || 'Custom',
+        body: templateEditor.body,
+      })
+      await refreshMeta()
+      setSelectedTemplateId(saved.id)
+      setTemplateEditor(null)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function removeTemplate(id) {
+    try {
+      await window.taknot.deleteTemplate(id)
+      await refreshMeta()
+      if (selectedTemplateId === id)
+        setSelectedTemplateId('blank')
+
+      setTemplateEditor(null)
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -1322,6 +1381,19 @@ export default function App() {
                           onDoubleClick={() => createFromTemplate(t)}
                         >
                           {t.name}
+                          {!t.builtin && (
+                            <span className='template-item-actions'>
+                              <button
+                                type='button'
+                                className='template-mini-btn'
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openEditTemplate(t)
+                                }}>
+                                Edit
+                              </button>
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -1335,13 +1407,90 @@ export default function App() {
                   >
                     Create note
                   </button>
+                  <button
+                    type='button'
+                    className='btn'
+                    onClick={() => openNewTemplate()}
+                  >
+                    New Template
+                  </button>
                 </div>
               </div>
               <div className="template-preview">
-                <div
-                  className="template-preview-card markdown"
-                  dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                />
+                {templateEditor ? (
+                  <div className="template-editor">
+                    <div className="settings-field">
+                      <label>Name</label>
+                      <input
+                        className="settings-text"
+                        value={templateEditor.name}
+                        onChange={(e) =>
+                          setTemplateEditor((s) => ({
+                            ...s,
+                            name: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="settings-field" style={{ marginTop: 10 }}>
+                      <label>Category</label>
+                      <input
+                        className="settings-text"
+                        value={templateEditor.category}
+                        onChange={(e) =>
+                          setTemplateEditor((s) => ({
+                            ...s,
+                            category: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="settings-field" style={{ marginTop: 10 }}>
+                      <label>Body (markdown)</label>
+                      <textarea
+                        className="settings-text template-body-input"
+                        rows={16}
+                        value={templateEditor.body}
+                        onChange={(e) =>
+                          setTemplateEditor((s) => ({
+                            ...s,
+                            body: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="template-editor-actions">
+                      {templateEditor.id && (
+                        <button
+                          type="button"
+                          className="btn danger"
+                          onClick={() => removeTemplate(templateEditor.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setTemplateEditor(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={saveTemplateEditor}
+                      >
+                        Save template
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="template-preview-card markdown"
+                    dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                  />
+                )}
               </div>
             </div>
           </>

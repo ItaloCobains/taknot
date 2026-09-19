@@ -24,4 +24,7 @@ contextBridge.exposeInMainWorld('taknot', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  listCustomTemplates: () => ipcRenderer.invoke('vault:listCustomTemplates'),
+  saveTemplate: (tpl) => ipcRenderer.invoke('vault:saveTemplate', tpl),
+  deleteTemplate: (id) => ipcRenderer.invoke('vault:deleteTemplate', id),
 });

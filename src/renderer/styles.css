@@ -944,9 +944,12 @@ button.tag-badge:hover .tag-badge-x {
   border-top: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.template-actions .btn.primary {
+.template-actions .btn {
   width: 100%;
   justify-content: center;
 }
@@ -980,6 +983,10 @@ button.tag-badge:hover .tag-badge-x {
 
 .template-item {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   text-align: left;
   border: 0;
   background: transparent;
@@ -998,6 +1005,60 @@ button.tag-badge:hover .tag-badge-x {
   background: var(--selected);
   color: #fff;
 }
+
+.template-mini-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.template-mini-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.template-item.selected .template-mini-btn {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.template-editor {
+  max-width: 720px;
+}
+
+.template-body-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.template-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.template-editor-actions .btn.primary {
+  width: auto;
+}
+
+.btn.danger {
+  color: var(--danger);
+  margin-right: auto;
+}
+
 
 .btn.primary {
   width: 100%;

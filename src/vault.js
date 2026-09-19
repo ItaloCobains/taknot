@@ -21,6 +21,11 @@ function now() {
 
 const DEFAULT_TAG_COLOR = '#8b93a7';
 
+function ensureMetaTemplates(meta) {
+  if (!Array.isArray(meta.templates)) meta.templates = []
+  return meta
+}
+
 function ensureMetaTags(meta) {
   if (!Array.isArray(meta.tags)) meta.tags = [];
   const byName = new Map(meta.tags.map((t) => [t.name, t]));
@@ -45,6 +50,7 @@ async function readMeta() {
   const meta = JSON.parse(raw);
   const before = meta.tags?.length ?? -1;
   ensureMetaTags(meta);
+  ensureMetaTemplates(meta)
   if ((meta.tags?.length ?? 0) !== before) {
     await writeMeta(meta);
   }
@@ -352,7 +358,7 @@ async function deleteNote(id) {
   const meta = await readMeta();
   meta.notes = meta.notes.filter((n) => n.id !== id);
   await writeMeta(meta);
-  await fs.unlink(notePath(id)).catch(() => {});
+  await fs.unlink(notePath(id)).catch(() => { });
 }
 
 async function duplicateNote(id) {
@@ -364,6 +370,53 @@ async function duplicateNote(id) {
     status: note.status,
     body: note.body,
   });
+}
+
+async function listCustomTemplates() {
+  const meta = await readMeta()
+  ensureMetaTemplates(meta)
+  return meta.templates
+}
+
+async function saveTemplate(input) {
+  const meta = await readMeta()
+  ensureMetaTemplates(meta)
+  const name = String(input.name || '').trim()
+  if (!name) throw new Error('Template name required')
+
+  const category = String(input.category || 'Custom').trim() || 'Custom'
+  const body = String(input.body || '')
+
+  let tpl = input.id ? meta.templates.find(t => t.id === input.id) : null
+
+  if (tpl) {
+    tpl.name = name
+    tpl.category = category
+    tpl.body = body
+  } else {
+    tpl = {
+      id: `tpl_${randomUUID()}`,
+      name,
+      category,
+      body,
+      builtin: false
+    }
+    meta.templates.push(tpl)
+  }
+
+  await writeMeta(meta)
+  return tpl
+}
+
+async function deleteTemplate(id) {
+  const meta = await readMeta()
+  ensureMetaTemplates(meta)
+  const before = meta.templates.length;
+  meta.templates = meta.templates.filter(t => t.id !== id)
+
+  if (meta.templates.length === before) throw new Error('Template not found')
+
+  await writeMeta(meta)
 }
 
 module.exports = {
@@ -384,4 +437,7 @@ module.exports = {
   saveTag,
   deleteTag,
   vaultRoot,
+  listCustomTemplates,
+  saveTemplate,
+  deleteTemplate,
 };

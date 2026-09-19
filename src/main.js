@@ -46,6 +46,9 @@ const createWindow = () => {
 app.whenReady().then(async () => {
   await vault.ensureVault();
 
+  ipcMain.handle('vault:listCustomTemplates', () => vault.listCustomTemplates());
+  ipcMain.handle('vault:saveTemplate', (_e, tpl) => vault.saveTemplate(tpl));
+  ipcMain.handle('vault:deleteTemplate', (_e, id) => vault.deleteTemplate(id));
   ipcMain.handle('vault:listNotebooks', () => vault.listNotebooks());
   ipcMain.handle('vault:listTags', () => vault.listTags());
   ipcMain.handle('vault:saveTag', (_e, tag) => vault.saveTag(tag));
