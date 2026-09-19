@@ -4,24 +4,59 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: 'taknot',
+    executableName: 'taknot',
+    appBundleId: 'app.taknot',
+    appCategoryType: 'public.app-category.productivity',
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        name: 'taknot',
+      },
     },
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
     },
     {
+      name: '@electron-forge/maker-dmg',
+      config: {
+        name: 'taknot',
+        format: 'ULFO',
+      },
+    },
+    {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        options: {
+          maintainer: 'Italo Brandão',
+          homepage: 'https://github.com/ItaloCobains/taknot',
+        },
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        options: {
+          homepage: 'https://github.com/ItaloCobains/taknot',
+        },
+      },
+    },
+  ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'ItaloCobains',
+          name: 'taknot',
+        },
+        prerelease: false,
+        draft: false,
+      },
     },
   ],
   plugins: [
