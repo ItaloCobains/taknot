@@ -409,6 +409,10 @@ select {
   height: 28px;
   display: grid;
   place-items: center;
+  place-content: center;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   padding: 0;
   border-radius: 6px;
 }

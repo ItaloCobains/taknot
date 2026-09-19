@@ -16,7 +16,7 @@ import EditorPane from './EditorPane.jsx';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
-import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.js';
+import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
