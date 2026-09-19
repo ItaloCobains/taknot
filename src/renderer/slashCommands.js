@@ -137,6 +137,22 @@ export const SLASH_COMMANDS = [
     cursor: 4,
   },
   {
+    id: 'latex',
+    label: 'LaTeX block',
+    hint: '$$',
+    keywords: ['latex', 'math', 'katex', 'formula', 'equation', 'tex'],
+    insert: '$$\n\n$$',
+    cursor: 3,
+  },
+  {
+    id: 'latex-inline',
+    label: 'LaTeX inline',
+    hint: '$...$',
+    keywords: ['latex', 'math', 'inline', 'tex'],
+    insert: '$$',
+    cursor: 1,
+  },
+  {
     id: 'table',
     label: 'Table',
     hint: '| | |',

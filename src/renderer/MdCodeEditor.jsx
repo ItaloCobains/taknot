@@ -29,6 +29,10 @@ import {
   detectSlash,
   filterSlashCommands,
 } from './slashCommands.js';
+import {
+  detectLatex,
+  filterLatexCommands,
+} from './latexCommands.js';
 
 const wikiMatcher = new MatchDecorator({
   regexp: /\[\[[^\]\n]+?\]\]/g,
@@ -147,10 +151,13 @@ export default function MdCodeEditor({
   const vimCompartmentRef = useRef(null);
   const slashMenuRef = useRef(null);
   const wikiMenuRef = useRef(null);
+  const latexMenuRef = useRef(null);
   const [slash, setSlash] = useState(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [wiki, setWiki] = useState(null);
   const [wikiIndex, setWikiIndex] = useState(0);
+  const [latex, setLatex] = useState(null);
+  const [latexIndex, setLatexIndex] = useState(0);
   const [vimStatus, setVimStatus] = useState(null);
 
   const slashList = useMemo(
@@ -166,6 +173,10 @@ export default function MdCodeEditor({
       : titles;
     return filtered.slice(0, 12);
   }, [wiki, noteTitles]);
+  const latexList = useMemo(
+    () => (latex ? filterLatexCommands(latex.query) : []),
+    [latex],
+  );
 
   const onChangeRef = useRef(onChange);
   const onScrollRef = useRef(onScrollRatio);
@@ -175,6 +186,9 @@ export default function MdCodeEditor({
   const wikiListRef = useRef(wikiList);
   const wikiIndexRef = useRef(wikiIndex);
   const wikiRef = useRef(wiki);
+  const latexListRef = useRef(latexList);
+  const latexIndexRef = useRef(latexIndex);
+  const latexRef = useRef(latex);
   const noteTitlesRef = useRef(noteTitles);
   onChangeRef.current = onChange;
   onScrollRef.current = onScrollRatio;
@@ -184,6 +198,9 @@ export default function MdCodeEditor({
   wikiListRef.current = wikiList;
   wikiIndexRef.current = wikiIndex;
   wikiRef.current = wiki;
+  latexListRef.current = latexList;
+  latexIndexRef.current = latexIndex;
+  latexRef.current = latex;
   noteTitlesRef.current = noteTitles;
 
   useEffect(() => {
@@ -198,6 +215,12 @@ export default function MdCodeEditor({
     active?.scrollIntoView({ block: 'nearest' });
   }, [wikiIndex, wiki, wikiList.length]);
 
+  useEffect(() => {
+    if (!latex || !latexMenuRef.current) return;
+    const active = latexMenuRef.current.querySelector('.latex-item.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [latexIndex, latex, latexList.length]);
+
   function applySlashCommand(cmd) {
     const view = viewRef.current;
     const s = slashRef.current;
@@ -210,6 +233,7 @@ export default function MdCodeEditor({
     });
     setSlash(null);
     setWiki(null);
+    setLatex(null);
     view.focus();
   }
 
@@ -223,6 +247,21 @@ export default function MdCodeEditor({
       selection: { anchor: w.start + insert.length },
     });
     setWiki(null);
+    setLatex(null);
+    view.focus();
+  }
+
+  function applyLatexCommand(cmd) {
+    const view = viewRef.current;
+    const hit = latexRef.current;
+    if (!view || !hit || !cmd) return;
+    const insert = cmd.insert;
+    const cursor = hit.start + (cmd.cursor ?? insert.length);
+    view.dispatch({
+      changes: { from: hit.start, to: hit.end, insert },
+      selection: { anchor: cursor },
+    });
+    setLatex(null);
     view.focus();
   }
 
@@ -254,6 +293,7 @@ export default function MdCodeEditor({
       const wikiHit = detectWiki(body, caret);
       if (wikiHit) {
         setSlash(null);
+        setLatex(null);
         const titles = noteTitlesRef.current || [];
         const q = wikiHit.query.trim().toLowerCase();
         const matches = (
@@ -267,6 +307,21 @@ export default function MdCodeEditor({
         return;
       }
       setWiki(null);
+
+      const latexHit = detectLatex(body, caret);
+      if (latexHit) {
+        setSlash(null);
+        const matches = filterLatexCommands(latexHit.query);
+        const place = placeMenu(
+          view,
+          latexHit.start,
+          Math.max(matches.length, 1),
+        );
+        setLatex({ ...latexHit, ...place });
+        setLatexIndex(0);
+        return;
+      }
+      setLatex(null);
 
       const hit = detectSlash(body, caret);
       if (!hit) {
@@ -284,6 +339,12 @@ export default function MdCodeEditor({
       const wlist = wikiListRef.current;
       if (w && wlist.length) {
         applyWikiTitle(wlist[wikiIndexRef.current] || wlist[0]);
+        return true;
+      }
+      const lhit = latexRef.current;
+      const llist = latexListRef.current;
+      if (lhit && llist.length) {
+        applyLatexCommand(llist[latexIndexRef.current] || llist[0]);
         return true;
       }
       const list = slashListRef.current;
@@ -308,13 +369,17 @@ export default function MdCodeEditor({
         syntaxHighlighting(coolHighlight),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         editorTheme,
-        placeholder("Type '/' for commands or [[ for notes…"),
+        placeholder("Type '/' for commands, [[ notes, or \\ in math…"),
         keymap.of([
           {
             key: 'ArrowDown',
             run: () => {
               if (wikiRef.current && wikiListRef.current.length) {
                 setWikiIndex((i) => (i + 1) % wikiListRef.current.length);
+                return true;
+              }
+              if (latexRef.current && latexListRef.current.length) {
+                setLatexIndex((i) => (i + 1) % latexListRef.current.length);
                 return true;
               }
               if (!slashRef.current || !slashListRef.current.length) return false;
@@ -330,6 +395,14 @@ export default function MdCodeEditor({
                   (i) =>
                     (i - 1 + wikiListRef.current.length) %
                     wikiListRef.current.length,
+                );
+                return true;
+              }
+              if (latexRef.current && latexListRef.current.length) {
+                setLatexIndex(
+                  (i) =>
+                    (i - 1 + latexListRef.current.length) %
+                    latexListRef.current.length,
                 );
                 return true;
               }
@@ -349,6 +422,10 @@ export default function MdCodeEditor({
             run: () => {
               if (wikiRef.current) {
                 setWiki(null);
+                return true;
+              }
+              if (latexRef.current) {
+                setLatex(null);
                 return true;
               }
               if (!slashRef.current) return false;
