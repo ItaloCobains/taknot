@@ -3,12 +3,34 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
 const { generateUpdateManifests } = require('./scripts/generate-update-manifests.cjs');
 
+// Forge Vite only packs `/.vite` by default. Native optional glass must ship
+// beside it (cannot be bundled by Rollup).
+const KEEP_PREFIXES = [
+  '/.vite',
+  '/package.json',
+  '/node_modules/electron-liquid-glass',
+  '/node_modules/bindings',
+  '/node_modules/file-uri-to-path',
+  '/node_modules/node-addon-api',
+  '/node_modules/node-gyp-build',
+];
+
+function keepPackagedFile(file) {
+  if (!file) return true;
+  return KEEP_PREFIXES.some(
+    (prefix) => file === prefix || file.startsWith(`${prefix}/`),
+  );
+}
+
 module.exports = {
   hooks: {
     postMake: async (_config, makeResults) => generateUpdateManifests(makeResults),
   },
   packagerConfig: {
-    asar: true,
+    // Unpack native .node so dyld can load liquid-glass
+    asar: {
+      unpack: '**/node_modules/electron-liquid-glass/**/*',
+    },
     name: 'taknot',
     executableName: 'taknot',
     appBundleId: 'app.taknot',
@@ -16,6 +38,8 @@ module.exports = {
     // Forge picks .icns / .ico / .png per platform
     icon: './icons/icon',
     extraResource: ['./icons'],
+    // true = ignore. Keep Vite output + liquid-glass tree only.
+    ignore: (file) => !keepPackagedFile(file),
   },
   rebuildConfig: {},
   makers: [
@@ -102,7 +126,8 @@ module.exports = {
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      // Must be false: liquid-glass .node loads from app.asar.unpacked
+      [FuseV1Options.OnlyLoadAppFromAsar]: false,
     }),
   ],
 };
