@@ -13,6 +13,8 @@ jobs:
   release:
     strategy:
       fail-fast: false
+      # One OS at a time — concurrent publisher-github uploads race on the same release
+      max-parallel: 1
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
 
@@ -31,7 +33,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # macOS runners are arm64 (Apple Silicon); Windows/Linux runners are x64.
       - name: Publish to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

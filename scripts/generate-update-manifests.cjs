@@ -1,6 +1,6 @@
 /**
- * Forge postMake hook helper: write electron-updater YAML manifests
- * next to make artifacts and attach them so publisher-github uploads them.
+ * Forge postMake: write ONE electron-updater YAML per platform and attach it
+ * to a single make result (avoids duplicate latest-*.yml uploads).
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -38,51 +38,73 @@ function manifestFor({ version, filePath, releaseDate }) {
   ].join('\n');
 }
 
+function platformSpec(platform) {
+  if (platform === 'darwin') {
+    return {
+      yamlName: 'latest-mac.yml',
+      predicates: [(n) => n.endsWith('.zip'), (n) => n.endsWith('.dmg')],
+    };
+  }
+  if (platform === 'win32') {
+    return {
+      yamlName: 'latest.yml',
+      predicates: [
+        (n) => n.endsWith('.exe') && n.includes('setup'),
+        (n) => n.endsWith('.exe'),
+        (n) => n.endsWith('.nupkg'),
+      ],
+    };
+  }
+  if (platform === 'linux') {
+    return {
+      yamlName: 'latest-linux.yml',
+      predicates: [
+        (n) => n.endsWith('.appimage'),
+        (n) => n.endsWith('.deb'),
+        (n) => n.endsWith('.rpm'),
+      ],
+    };
+  }
+  return null;
+}
+
 function generateUpdateManifests(makeResults) {
   const version = require('../package.json').version;
   const releaseDate = new Date().toISOString();
 
-  return makeResults.map((result) => {
-    const platform = result.platform;
-    const artifacts = [...(result.artifacts || [])];
-    let file = null;
-    let yamlName = null;
+  const allByPlatform = new Map();
+  for (const result of makeResults) {
+    const list = allByPlatform.get(result.platform) || [];
+    list.push(...(result.artifacts || []));
+    allByPlatform.set(result.platform, list);
+  }
 
-    if (platform === 'darwin') {
-      file = pickArtifact(artifacts, [
-        (n) => n.endsWith('.zip'),
-        (n) => n.endsWith('.dmg'),
-      ]);
-      yamlName = 'latest-mac.yml';
-    } else if (platform === 'win32') {
-      file = pickArtifact(artifacts, [
-        (n) => n.endsWith('.exe') && n.toLowerCase().includes('setup'),
-        (n) => n.endsWith('.exe'),
-        (n) => n.endsWith('.nupkg'),
-      ]);
-      yamlName = 'latest.yml';
-    } else if (platform === 'linux') {
-      file = pickArtifact(artifacts, [
-        (n) => n.endsWith('.AppImage'),
-        (n) => n.endsWith('.deb'),
-        (n) => n.endsWith('.rpm'),
-      ]);
-      yamlName = 'latest-linux.yml';
-    }
-
-    if (!file || !yamlName) {
-      return { ...result, artifacts };
-    }
-
-    const outDir = path.dirname(file);
-    const yamlPath = path.join(outDir, yamlName);
+  const yamlPathByPlatform = new Map();
+  for (const [platform, artifacts] of allByPlatform) {
+    const spec = platformSpec(platform);
+    if (!spec) continue;
+    const file = pickArtifact(artifacts, spec.predicates);
+    if (!file) continue;
+    const yamlPath = path.join(path.dirname(file), spec.yamlName);
     fs.writeFileSync(
       yamlPath,
       manifestFor({ version, filePath: file, releaseDate }),
       'utf8',
     );
-    if (!artifacts.includes(yamlPath)) artifacts.push(yamlPath);
-    console.log(`[update-manifest] ${platform}: ${yamlName} <- ${path.basename(file)}`);
+    yamlPathByPlatform.set(platform, yamlPath);
+    console.log(
+      `[update-manifest] ${platform}: ${spec.yamlName} <- ${path.basename(file)}`,
+    );
+  }
+
+  const attached = new Set();
+  return makeResults.map((result) => {
+    const artifacts = [...(result.artifacts || [])];
+    const yamlPath = yamlPathByPlatform.get(result.platform);
+    if (yamlPath && !attached.has(result.platform)) {
+      if (!artifacts.includes(yamlPath)) artifacts.push(yamlPath);
+      attached.add(result.platform);
+    }
     return { ...result, artifacts };
   });
 }
