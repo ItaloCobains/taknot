@@ -173,10 +173,10 @@ export function filterSlashCommands(query) {
   );
 }
 
-/** Find active `/query` before caret. Returns null if not in a slash command. */
+/** Find active `/query` before caret. `/` at line start or after space/tab. */
 export function detectSlash(body, caret) {
   const before = body.slice(0, caret);
-  const match = before.match(/(^|\n)\/([^\n]*)$/);
+  const match = before.match(/(^|[\n \t])\/([^\n]*)$/);
   if (!match) return null;
   const start = before.length - match[0].length + match[1].length;
   return { start, end: caret, query: match[2] };
