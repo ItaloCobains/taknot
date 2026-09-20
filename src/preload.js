@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('taknot', {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   getMcpInfo: () => ipcRenderer.invoke('mcp:getInfo'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  checkSpelling: (words) => ipcRenderer.invoke('spell:checkWords', words),
+  suggestSpelling: (word) => ipcRenderer.invoke('spell:suggest', word),
   onVaultChanged: (cb) => {
     const handler = () => {
       try {

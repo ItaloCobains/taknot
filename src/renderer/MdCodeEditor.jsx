@@ -26,6 +26,13 @@ import {
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import {
+  spellcheckExtension,
+  wordAt,
+  addCustomWord,
+  setMisspelledEffect,
+  misspelledField,
+} from './spellcheckExt.js';
+import {
   detectSlash,
   filterSlashCommands,
 } from './slashCommands.js';
@@ -188,6 +195,8 @@ export default function MdCodeEditor({
   const wikiMenuRef = useRef(null);
   const latexMenuRef = useRef(null);
   const [slash, setSlash] = useState(null);
+  const [spellMenu, setSpellMenu] = useState(null);
+
   const [slashIndex, setSlashIndex] = useState(0);
   const [wiki, setWiki] = useState(null);
   const [wikiIndex, setWikiIndex] = useState(0);
@@ -497,6 +506,8 @@ export default function MdCodeEditor({
           indentWithTab,
         ]),
         EditorView.lineWrapping,
+        // Native Electron spellcheck does not mark CodeMirror on Electron 44 — JS dictionaries instead.
+        ...spellcheckExtension(),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());
@@ -514,6 +525,32 @@ export default function MdCodeEditor({
             const max = scroller.scrollHeight - scroller.clientHeight;
             if (max > 0) onScrollRef.current?.(scroller.scrollTop / max);
             return false;
+          },
+          contextmenu: (event, view) => {
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos == null) return false;
+            const hit = wordAt(view.state, pos);
+            if (!hit) return false;
+            const bad = view.state.field(misspelledField);
+            if (!bad.has(hit.word) && !bad.has(hit.word.toLowerCase())) return false;
+            event.preventDefault();
+            void (async () => {
+              let suggestions = [];
+              try {
+                suggestions = (await window.taknot?.suggestSpelling?.(hit.word)) || [];
+              } catch {
+                suggestions = [];
+              }
+              setSpellMenu({
+                top: event.clientY,
+                left: event.clientX,
+                word: hit.word,
+                from: hit.from,
+                to: hit.to,
+                suggestions,
+              });
+            })();
+            return true;
           },
         }),
       ],
@@ -605,6 +642,20 @@ export default function MdCodeEditor({
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
   }, [vimMode]);
+
+  useEffect(() => {
+    if (!spellMenu) return undefined;
+    const close = () => setSpellMenu(null);
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [spellMenu]);
 
   return (
     <div className="md-code-wrap">
@@ -714,6 +765,67 @@ export default function MdCodeEditor({
                 <span className="slash-hint">{cmd.hint}</span>
               </button>
             ))}
+          </div>,
+          document.body,
+        )}
+
+      {spellMenu &&
+        createPortal(
+          <div
+            className="spell-menu"
+            style={{ top: spellMenu.top, left: spellMenu.left }}
+            role="menu"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {spellMenu.suggestions.length === 0 ? (
+              <div className="spell-menu-empty">No suggestions</div>
+            ) : (
+              spellMenu.suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="spell-menu-item"
+                  role="menuitem"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const view = viewRef.current;
+                    if (!view) return;
+                    view.dispatch({
+                      changes: {
+                        from: spellMenu.from,
+                        to: spellMenu.to,
+                        insert: s,
+                      },
+                    });
+                    setSpellMenu(null);
+                  }}
+                >
+                  {s}
+                </button>
+              ))
+            )}
+            <div className="spell-menu-sep" />
+            <button
+              type="button"
+              className="spell-menu-item muted"
+              role="menuitem"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const view = viewRef.current;
+                addCustomWord(spellMenu.word);
+                if (view) {
+                  const next = new Set(view.state.field(misspelledField));
+                  next.delete(spellMenu.word);
+                  next.delete(spellMenu.word.toLowerCase());
+                  view.dispatch({ effects: setMisspelledEffect.of(next) });
+                }
+                setSpellMenu(null);
+              }}
+            >
+              Add to dictionary
+            </button>
           </div>,
           document.body,
         )}

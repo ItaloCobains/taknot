@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, clipboard, shell } = require('electron');
 let liquidGlass = null;
 try {
   liquidGlass = require('electron-liquid-glass');
@@ -9,6 +9,77 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vault = require('./vault');
 const { initAutoUpdate, checkForUpdates } = require('./autoUpdate');
+const spellService = require('./spellService');
+
+
+/** Enable Chromium/macOS spellchecker for the note window (pt-BR + en-US when available). */
+function configureSpellChecker(ses) {
+  try {
+    ses.setSpellCheckerEnabled(true);
+  } catch (err) {
+    console.warn('[taknot] setSpellCheckerEnabled failed', err?.message || err);
+    return;
+  }
+  // On darwin this is a no-op (OS spellchecker + auto language detect).
+  // On win/linux, filter against available Hunspell dictionaries.
+  const wanted = ['pt-BR', 'en-US'];
+  try {
+    const available = ses.availableSpellCheckerLanguages || [];
+    const langs = wanted.filter((code) => available.includes(code));
+    if (langs.length === 0) {
+      console.warn(
+        '[taknot] no wanted spellchecker languages available',
+        { wanted, availableCount: available.length },
+      );
+      return;
+    }
+    if (langs.length < wanted.length) {
+      console.warn(
+        '[taknot] some spellchecker languages missing; using',
+        langs,
+        '(wanted',
+        wanted,
+        ')',
+      );
+    }
+    ses.setSpellCheckerLanguages(langs);
+  } catch (err) {
+    console.warn('[taknot] setSpellCheckerLanguages failed', err?.message || err);
+  }
+}
+
+/** Spelling suggestions / replace / add-to-dictionary. Skip when not a misspelling so renderer note/tag/notebook menus keep working. */
+function attachSpellcheckContextMenu(win) {
+  win.webContents.on('context-menu', (_event, params) => {
+    const word = params.misspelledWord;
+    const suggestions = params.dictionarySuggestions || [];
+    if (!word && suggestions.length === 0) return;
+
+    const template = [];
+    for (const suggestion of suggestions) {
+      template.push({
+        label: suggestion,
+        click: () => {
+          win.webContents.replaceMisspelling(suggestion);
+        },
+      });
+    }
+    if (suggestions.length > 0) {
+      template.push({ type: 'separator' });
+    }
+    if (word) {
+      template.push({
+        label: 'Add to dictionary',
+        click: () => {
+          win.webContents.session.addWordToSpellCheckerDictionary(word);
+        },
+      });
+    }
+    if (template.length === 0) return;
+    Menu.buildFromTemplate(template).popup({ window: win });
+  });
+}
+
 
 /** Debounced fs.watch → renderer when MCP/other process mutates the vault. */
 function watchVault() {
@@ -51,8 +122,13 @@ const createWindow = () => {
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      spellcheck: true,
     },
   });
+
+  configureSpellChecker(mainWindow.webContents.session);
+  // Native CM spellcheck broken on Electron 44; JS dictionaries + renderer menu handle notes.
+  // attachSpellcheckContextMenu(mainWindow);
 
   mainWindow.setWindowButtonVisibility(true);
 
@@ -159,6 +235,16 @@ app.whenReady().then(async () => {
     return true;
   });
 
+  ipcMain.handle('spell:checkWords', async (_e, words) => {
+    await spellService.whenReady();
+    return spellService.checkWords(Array.isArray(words) ? words : []);
+  });
+  ipcMain.handle('spell:suggest', async (_e, word) => {
+    await spellService.whenReady();
+    return spellService.suggest(String(word || ''));
+  });
+
+  spellService.initSpellService();
   createWindow();
   watchVault();
   initAutoUpdate();
