@@ -70,6 +70,15 @@ function formatVimMode(mode) {
   return { key: 'normal', label: 'NORMAL' };
 }
 
+function readVimCursor(view) {
+  const head = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(head);
+  const col = head - line.from + 1;
+  const total = view.state.doc.lines || 1;
+  const pct = Math.min(100, Math.round(((line.number - 1) / Math.max(1, total - 1)) * 100));
+  return { line: line.number, col, pct };
+}
+
 const coolHighlight = HighlightStyle.define([
   { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700', fontSize: '1.75em' },
   { tag: tags.heading2, color: '#ff7eb6', fontWeight: '700', fontSize: '1.4em' },
@@ -159,6 +168,11 @@ export default function MdCodeEditor({
   const [latex, setLatex] = useState(null);
   const [latexIndex, setLatexIndex] = useState(0);
   const [vimStatus, setVimStatus] = useState(null);
+  const [vimCursor, setVimCursor] = useState({ line: 1, col: 1, pct: 0 });
+  const [vimClock, setVimClock] = useState(() => {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  });
 
   const slashList = useMemo(
     () => (slash ? filterSlashCommands(slash.query) : []),
@@ -445,6 +459,9 @@ export default function MdCodeEditor({
           if (update.docChanged || update.selectionSet) {
             updateMenus(update.view);
           }
+          if (update.selectionSet || update.docChanged) {
+            setVimCursor(readVimCursor(update.view));
+          }
         }),
         EditorView.domEventHandlers({
           scroll: (_event, view) => {
@@ -459,6 +476,7 @@ export default function MdCodeEditor({
 
     const view = new EditorView({ state, parent: hostRef.current });
     viewRef.current = view;
+    setVimCursor(readVimCursor(view));
 
     const syncVimStatus = () => {
       if (!vimMode) {
@@ -530,13 +548,30 @@ export default function MdCodeEditor({
     };
   }, [noteId, apiRef]);
 
+  useEffect(() => {
+    if (!vimMode) return undefined;
+    const tick = () => {
+      const d = new Date();
+      setVimClock(
+        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      );
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [vimMode]);
+
   return (
     <div className="md-code-wrap">
       <div className="md-code-editor" ref={hostRef} />
       {vimMode && vimStatus && (
-        <div className={`vim-status vim-${vimStatus.key}`}>
-          <span className="vim-status-pill">{vimStatus.label}</span>
-          <span className="vim-status-hint">Esc normal · i insert · v visual</span>
+        <div className={`vim-status vim-${vimStatus.key}`} aria-label="Vim statusline">
+          <span className="vim-seg vim-seg-mode">{vimStatus.label}</span>
+          <span className="vim-seg vim-seg-grow" />
+          <span className="vim-seg vim-seg-right vim-pos">
+            {vimCursor.pct}%&nbsp;&nbsp;{vimCursor.line}:{vimCursor.col}
+          </span>
+          <span className="vim-seg vim-seg-end">{vimClock}</span>
         </div>
       )}
       {wiki &&

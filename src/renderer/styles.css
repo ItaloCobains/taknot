@@ -1991,63 +1991,161 @@ textarea.editor {
 }
 
 
+/* Neovim / lualine-inspired powerline statusline */
 .vim-status {
+  --vim-bar: #1e1e2e;
+  --vim-bar-alt: #313244;
+  --vim-fg: #cdd6f4;
+  --vim-muted: #a6adc8;
+  --vim-mode-bg: #89dceb;
+  --vim-mode-fg: #11111b;
+  --vim-h: 26px;
+  --vim-arrow: 10px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: stretch;
   flex-shrink: 0;
-  padding: 6px 12px;
-  border-top: 1px solid var(--line);
-  background: linear-gradient(90deg, rgba(18, 20, 32, 0.92), rgba(28, 22, 40, 0.88));
+  height: var(--vim-h);
+  background: var(--vim-bar);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+  line-height: var(--vim-h);
+  color: var(--vim-fg);
+  overflow: hidden;
+  user-select: none;
 }
 
-.vim-status-pill {
+.vim-seg {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 0 12px;
+  height: 100%;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
 }
 
-.vim-status-hint {
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.02em;
+.vim-seg-mode {
+  background: var(--vim-mode-bg);
+  color: var(--vim-mode-fg);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding-right: 14px;
+  z-index: 3;
 }
 
-.vim-normal .vim-status-pill {
-  color: #0b1220;
-  background: var(--accent-pink, #ff7eb6);
-  border-color: rgba(255, 126, 182, 0.7);
-  box-shadow: 0 0 18px rgba(255, 126, 182, 0.35);
+.vim-seg-mode::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: calc(var(--vim-h) / 2) 0 calc(var(--vim-h) / 2) var(--vim-arrow);
+  border-color: transparent transparent transparent var(--vim-mode-bg);
+  z-index: 3;
 }
 
-.vim-insert .vim-status-pill {
-  color: #071018;
-  background: var(--accent-cyan, #5eead4);
-  border-color: rgba(94, 234, 212, 0.7);
-  box-shadow: 0 0 18px rgba(94, 234, 212, 0.3);
+.vim-seg-mid {
+  background: var(--vim-bar-alt);
+  color: var(--vim-muted);
+  margin-left: calc(var(--vim-arrow) - 2px);
+  padding-left: 14px;
+  padding-right: 14px;
+  z-index: 2;
 }
 
-.vim-visual .vim-status-pill {
-  color: #12081c;
-  background: var(--accent-violet, #c4b5fd);
-  border-color: rgba(196, 181, 253, 0.7);
-  box-shadow: 0 0 18px rgba(196, 181, 253, 0.3);
+.vim-seg-mid::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: calc(var(--vim-h) / 2) 0 calc(var(--vim-h) / 2) var(--vim-arrow);
+  border-color: transparent transparent transparent var(--vim-bar-alt);
+  z-index: 2;
 }
 
-.vim-replace .vim-status-pill,
-.vim-command .vim-status-pill {
-  color: #1a1200;
-  background: var(--accent-amber, #e5c07b);
-  border-color: rgba(229, 192, 123, 0.7);
+.vim-seg-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--vim-bar);
+  color: var(--vim-muted);
+  padding-left: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.vim-seg-right {
+  margin-left: auto;
+  background: var(--vim-bar-alt);
+  color: var(--vim-fg);
+  padding-left: 16px;
+  z-index: 2;
+}
+
+.vim-seg-right::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: calc(var(--vim-h) / 2) var(--vim-arrow) calc(var(--vim-h) / 2) 0;
+  border-color: transparent var(--vim-bar-alt) transparent transparent;
+  z-index: 2;
+}
+
+.vim-seg-end {
+  background: var(--vim-mode-bg);
+  color: var(--vim-mode-fg);
+  font-weight: 650;
+  padding-left: 14px;
+  z-index: 3;
+}
+
+.vim-seg-end::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: calc(var(--vim-h) / 2) var(--vim-arrow) calc(var(--vim-h) / 2) 0;
+  border-color: transparent var(--vim-mode-bg) transparent transparent;
+  z-index: 3;
+}
+
+.vim-normal {
+  --vim-mode-bg: #89dceb;
+  --vim-mode-fg: #11111b;
+}
+
+.vim-insert {
+  --vim-mode-bg: #a6e3a1;
+  --vim-mode-fg: #11111b;
+}
+
+.vim-visual {
+  --vim-mode-bg: #cba6f7;
+  --vim-mode-fg: #11111b;
+}
+
+.vim-replace,
+.vim-command {
+  --vim-mode-bg: #f9e2af;
+  --vim-mode-fg: #11111b;
+}
+
+.vim-pos {
+  opacity: 0.9;
+}
 
 .markdown a.wiki-link {
   color: var(--accent-cyan, #5eead4);
