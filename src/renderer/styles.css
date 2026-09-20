@@ -2543,3 +2543,57 @@ textarea.editor {
   margin: 4px 6px;
   background: var(--line);
 }
+
+
+.hotkey-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.hotkey-label {
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.hotkey-bind {
+  flex-shrink: 0;
+  min-width: 108px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+
+.hotkey-bind:hover {
+  background: var(--hover);
+}
+
+.hotkey-bind.is-recording {
+  border-color: #5a8cff;
+  color: #9db7ff;
+  box-shadow: 0 0 0 2px rgba(90, 140, 255, 0.25);
+}
+
+.hotkey-conflict {
+  color: #f87171 !important;
+}

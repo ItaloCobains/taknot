@@ -25,6 +25,7 @@ import {
   HighlightStyle,
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { eventMatchesHotkey, loadHotkeys } from './hotkeys.js';
 import {
   spellcheckExtension,
   wordAt,
@@ -84,6 +85,49 @@ function readVimCursor(view) {
   const total = view.state.doc.lines || 1;
   const pct = Math.min(100, Math.round(((line.number - 1) / Math.max(1, total - 1)) * 100));
   return { line: line.number, col, pct };
+}
+
+
+/** Wrap selection (or insert markers) for markdown emphasis. */
+function wrapMarkdown(view, left, right = left) {
+  const { state } = view;
+  const sel = state.selection.main;
+  const selected = state.sliceDoc(sel.from, sel.to);
+  const from = sel.from;
+  const to = sel.to;
+  // Unwrap if already wrapped
+  if (
+    selected.startsWith(left) &&
+    selected.endsWith(right) &&
+    selected.length >= left.length + right.length
+  ) {
+    const inner = selected.slice(left.length, selected.length - right.length);
+    view.dispatch({
+      changes: { from, to, insert: inner },
+      selection: { anchor: from, head: from + inner.length },
+    });
+    return true;
+  }
+  const before = state.sliceDoc(Math.max(0, from - left.length), from);
+  const after = state.sliceDoc(to, Math.min(state.doc.length, to + right.length));
+  if (before === left && after === right) {
+    view.dispatch({
+      changes: [
+        { from: from - left.length, to: from, insert: '' },
+        { from: to, to: to + right.length, insert: '' },
+      ],
+      selection: { anchor: from - left.length, head: to - left.length },
+    });
+    return true;
+  }
+  const insert = left + selected + right;
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: selected
+      ? { anchor: from + left.length, head: from + left.length + selected.length }
+      : { anchor: from + left.length },
+  });
+  return true;
 }
 
 /** Vim Ctrl-d / Ctrl-u: scroll ~half a page and move the cursor with it. */
@@ -613,6 +657,28 @@ export default function MdCodeEditor({
       changes: { from: 0, to: current.length, insert: value || '' },
     });
   }, [value]);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.defaultPrevented) return;
+      const view = viewRef.current;
+      if (!view) return;
+      // Only when editor (or its host) has focus
+      if (!view.hasFocus) return;
+      const hk = loadHotkeys();
+      if (hk.bold && eventMatchesHotkey(e, hk.bold)) {
+        e.preventDefault();
+        wrapMarkdown(view, '**');
+        return;
+      }
+      if (hk.italic && eventMatchesHotkey(e, hk.italic)) {
+        e.preventDefault();
+        wrapMarkdown(view, '*');
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [noteId]);
 
   useEffect(() => {
     const view = viewRef.current;

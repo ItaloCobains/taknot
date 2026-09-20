@@ -9,7 +9,6 @@ import {
   Copy,
   Eye,
   FileDown,
-  Folder,
   Hash,
   ListTodo,
   Maximize2,
@@ -38,7 +37,6 @@ function formatStamp(iso) {
 
 export default function EditorPane({
   note,
-  notebookName,
   tagColors = {},
   saving,
   focusMode,
@@ -284,16 +282,6 @@ export default function EditorPane({
       <div className="editor-meta">
         <h1 className="note-title">{note.title}</h1>
         <div className="note-meta-row">
-          <button type="button" className="meta-chip breadcrumb-chip" title={notebookName}>
-            <Folder size={14} strokeWidth={1.75} />
-            <span className="breadcrumb-text">
-              {notebookName}
-              <span className="muted"> : </span>
-              {note.title}
-            </span>
-            <ChevronDown size={14} strokeWidth={1.75} />
-          </button>
-
           <label className="meta-chip status-chip">
             <StatusBadge status={note.status} />
             <select
