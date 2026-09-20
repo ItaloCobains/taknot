@@ -104,10 +104,6 @@ select {
   min-width: 0;
 }
 
-.app.focus-mode {
-  grid-template-columns: 0 0 1fr;
-}
-
 .app.focus-mode .sidebar,
 .app.focus-mode .note-list {
   opacity: 0;
@@ -213,7 +209,13 @@ select {
 }
 
 .app.sidebar-collapsed {
-  grid-template-columns: 0px minmax(340px, 400px) 1fr;
+  /* Fixed px (not minmax) so grid-template-columns can interpolate into focus-mode. */
+  grid-template-columns: 0px 370px 1fr;
+}
+
+/* After sidebar-collapsed so focus-mode wins when both are set. */
+.app.focus-mode {
+  grid-template-columns: 0px 0px 1fr;
 }
 
 .app .sidebar {
