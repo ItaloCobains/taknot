@@ -5,7 +5,7 @@ App de notas em **Markdown** para o desktop — rápido, com visual glass no mac
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.2-blue)
+![Version](https://img.shields.io/badge/version-0.0.9-blue)
 
 ## Features
 
@@ -19,6 +19,8 @@ App de notas em **Markdown** para o desktop — rápido, com visual glass no mac
 - **Templates** built-in + templates custom (criar / editar / apagar)
 - **Focus mode**, translucidez ajustável, autosave no vault local
 - **Liquid glass** nativo no macOS 26+ (`electron-liquid-glass`); Windows/Linux usam fundo sólido
+- **MCP server** (stdio) — agentes de IA leem/criam/editam notas, tags e notebooks no mesmo vault
+- **LaTeX** no preview (KaTeX), `/` LaTeX e autocomplete `\frac` em math
 
 ## Stack
 
@@ -51,6 +53,8 @@ Depois de mudar código do **main** / `vault.js` / `preload.js`, no terminal do 
 | `npm run package` | Empacota sem instaladores |
 | `npm run make` | Gera instaladores locais em `out/` |
 | `npm run publish` | Make + upload para GitHub Releases |
+| `npm run mcp` | Sobe o servidor MCP (stdio) — use via cliente, não no terminal interativo |
+| `npx taknot-mcp` / `bin/taknot-mcp` | Mesmo server (após clone + `npm i`) |
 
 ## Onde ficam as notas
 
@@ -73,6 +77,47 @@ Também dá para checar em **Settings → Verificar atualizações**.
 
 Os arquivos `latest.yml` / `latest-mac.yml` / `latest-linux.yml` são gerados no `postMake` do Forge e publicados junto com os instaladores.
 
+
+## MCP (AI agents)
+
+O app **não** inicia o MCP sozinho. O Cursor (ou outro harness) sobe um processo stdio que fala com o mesmo vault.
+
+```bash
+npm install
+npm run mcp
+# ou: ./bin/taknot-mcp
+```
+
+Variável opcional:
+
+```bash
+export TAKNOT_VAULT="$HOME/Library/Application Support/taknot/vault"
+```
+
+### Cursor (`~/.cursor/mcp.json`)
+
+Faça merge com servers existentes:
+
+```json
+{
+  "mcpServers": {
+    "taknot": {
+      "command": "node",
+      "args": ["/ABS/PATH/taknot/src/mcp/server.mjs"],
+      "env": {
+        "TAKNOT_VAULT": "/ABS/PATH/Library/Application Support/taknot/vault"
+      }
+    }
+  }
+}
+```
+
+No macOS o vault padrão é `~/Library/Application Support/taknot/vault`. Em **Settings → MCP** o app mostra o path e um botão para copiar o snippet.
+
+Tools: notes (`list/get/create/update/delete/duplicate`), tags (`list/save/delete`), notebooks (`list/create/rename/icon/move/delete`). Inbox (`nb_inbox`) não pode ser apagado.
+
+Com o app aberto, mudanças feitas pelo agente disparam refresh na UI (`fs.watch` no vault).
+
 ## Release
 
 Builds multiplataforma (macOS / Windows / Linux) rodam no GitHub Actions ao publicar um tag `v*`.
@@ -82,8 +127,8 @@ Builds multiplataforma (macOS / Windows / Linux) rodam no GitHub Actions ao publ
 
 ```bash
 git checkout main && git pull
-git tag v0.0.1
-git push origin v0.0.1
+git tag v0.0.9
+git push origin v0.0.9
 ```
 
 3. Acompanhe: [Actions → Release](https://github.com/ItaloCobains/taknot/actions)
@@ -99,10 +144,13 @@ git push origin v0.0.1
 
 ```text
 src/
-  main.js          # processo principal Electron
+  main.js          # processo principal Electron (+ vault watch)
   preload.js       # bridge IPC
   vault.js         # notebooks, notes, tags, templates
+  mcp/server.mjs   # MCP stdio (AI agents)
   renderer/        # React UI + CodeMirror
+bin/
+  taknot-mcp       # CLI entry → src/mcp/server.mjs
 ```
 
 ## License

@@ -28,5 +28,17 @@ contextBridge.exposeInMainWorld('taknot', {
   saveTemplate: (tpl) => ipcRenderer.invoke('vault:saveTemplate', tpl),
   deleteTemplate: (id) => ipcRenderer.invoke('vault:deleteTemplate', id),
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  getMcpInfo: () => ipcRenderer.invoke('mcp:getInfo'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  onVaultChanged: (cb) => {
+    const handler = () => {
+      try {
+        cb();
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    ipcRenderer.on('vault:changed', handler);
+    return () => ipcRenderer.removeListener('vault:changed', handler);
+  },
 });

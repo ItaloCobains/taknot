@@ -6,8 +6,31 @@ try {
   // optionalDependency — darwin only; win/linux builds skip glass
 }
 const path = require('node:path');
+const fs = require('node:fs');
 const vault = require('./vault');
 const { initAutoUpdate, checkForUpdates } = require('./autoUpdate');
+
+/** Debounced fs.watch → renderer when MCP/other process mutates the vault. */
+function watchVault() {
+  const root = vault.vaultRoot();
+  let timer = null;
+  const emit = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('vault:changed');
+        }
+      }
+    }, 180);
+  };
+  try {
+    fs.watch(root, { recursive: true }, emit);
+    console.log('[taknot] watching vault', root);
+  } catch (err) {
+    console.warn('[taknot] vault watch failed', err?.message || err);
+  }
+}
 
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -113,12 +136,31 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('app:getVersion', () => app.getVersion());
+  ipcMain.handle('mcp:getInfo', () => {
+    const cwdServer = path.join(process.cwd(), 'src', 'mcp', 'server.mjs');
+    const appServer = path.join(app.getAppPath(), 'src', 'mcp', 'server.mjs');
+    let serverPath = cwdServer;
+    try {
+      const fs = require('node:fs');
+      if (!fs.existsSync(cwdServer) && fs.existsSync(appServer)) {
+        serverPath = appServer;
+      }
+    } catch {
+      /* keep cwdServer */
+    }
+    return {
+      vault: vault.vaultRoot(),
+      serverPath,
+      startedByApp: false,
+    };
+  });
   ipcMain.handle('app:checkForUpdates', async () => {
     await checkForUpdates({ manual: true });
     return true;
   });
 
   createWindow();
+  watchVault();
   initAutoUpdate();
 
   app.on('activate', () => {

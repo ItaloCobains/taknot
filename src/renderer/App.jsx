@@ -147,6 +147,8 @@ export default function App() {
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
   const [vimMode, setVimMode] = useState(readStoredVimMode);
   const [appVersion, setAppVersion] = useState("");
+  const [mcpInfo, setMcpInfo] = useState(null);
+  const [mcpCopied, setMcpCopied] = useState(false);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -233,6 +235,7 @@ export default function App() {
 
   useEffect(() => {
     window.taknot?.getVersion?.().then(setAppVersion).catch(() => {});
+    window.taknot?.getMcpInfo?.().then(setMcpInfo).catch(() => {});
   }, []);
 
   const listFilter = useMemo(() => {
@@ -299,6 +302,39 @@ export default function App() {
   useEffect(() => {
     refreshNotes().catch(console.error);
   }, [refreshNotes]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    window.taknot?.getMcpInfo?.().then(setMcpInfo).catch(() => {});
+  }, [settingsOpen]);
+
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  // External vault writes (MCP / another process) → refresh UI.
+  useEffect(() => {
+    if (typeof window.taknot?.onVaultChanged !== 'function') return undefined;
+    return window.taknot.onVaultChanged(() => {
+      refreshMeta().catch(console.error);
+      refreshNotes()
+        .then(async (list) => {
+          const id = selectedIdRef.current;
+          if (!id) return;
+          if (!list.some((n) => n.id === id)) {
+            setSelectedId(null);
+            setNote(null);
+            return;
+          }
+          const current = noteRef.current;
+          // Don't clobber in-progress edits.
+          if (current && noteSnapshot(current) !== saveBaselineRef.current) return;
+          const n = await window.taknot.getNote(id);
+          setNote(n);
+          saveBaselineRef.current = noteSnapshot(n);
+        })
+        .catch(console.error);
+    });
+  }, [refreshMeta, refreshNotes]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -1149,70 +1185,160 @@ export default function App() {
                 <X {...ICON} />
               </button>
             </div>
-            <div className="settings-field">
-              <label htmlFor="pane-translucency">
-                Translucency
-                <strong>{translucency}%</strong>
-              </label>
-              <input
-                id="pane-translucency"
-                type="range"
-                min={0}
-                max={100}
-                value={translucency}
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onChange={(e) => setTranslucency(Number(e.target.value))}
-              />
-              <p className="settings-hint">
-                100% = liquid glass extremo (como no início). 0% = bem sólido e
-                legível.
-              </p>
-            </div>
-            <div className="settings-field" style={{ marginTop: 18 }}>
-              <label className="settings-toggle" htmlFor="vim-mode">
-                <span>
-                  Vim mode
-                  <span className="settings-hint" style={{ display: 'block', margin: 0 }}>
-                    Atalhos Vim no editor de markdown (hjkl, modes, etc.).
+            <div className="settings-body">
+              <section className="settings-section">
+                <h3 className="settings-section-title">Aparência</h3>
+                <div className="settings-card">
+                  <div className="settings-field">
+                    <label htmlFor="pane-translucency">
+                      Translucency
+                      <strong>{translucency}%</strong>
+                    </label>
+                    <input
+                      id="pane-translucency"
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={translucency}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onChange={(e) => setTranslucency(Number(e.target.value))}
+                    />
+                    <p className="settings-hint">
+                      100% = liquid glass extremo. 0% = bem sólido e legível.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3 className="settings-section-title">Editor</h3>
+                <div className="settings-card">
+                  <label className="settings-toggle" htmlFor="vim-mode">
+                    <span>
+                      Vim mode
+                      <span className="settings-hint" style={{ display: 'block', margin: 0 }}>
+                        Atalhos Vim no markdown (hjkl, modes, etc.).
+                      </span>
+                    </span>
+                    <input
+                      id="vim-mode"
+                      type="checkbox"
+                      checked={vimMode}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onChange={(e) => setVimMode(e.target.checked)}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3 className="settings-section-title">
+                  MCP
+                  <span className="settings-pill">stdio</span>
+                </h3>
+                <div className="settings-card settings-card-stack">
+                  <p className="settings-hint" style={{ margin: 0 }}>
+                    Abrir o taknot <strong>não</strong> inicia o servidor MCP.
+                    O Cursor (ou outro harness) sobe o processo sob demanda.
+                    O app só observa o vault e atualiza a UI quando um agente
+                    escreve.
+                  </p>
+                  {mcpInfo?.vault ? (
+                    <div className="settings-kv">
+                      <span>Vault</span>
+                      <code>{mcpInfo.vault}</code>
+                    </div>
+                  ) : (
+                    <p className="settings-hint" style={{ margin: 0 }}>
+                      Reinicie o app se o path do vault não aparecer.
+                    </p>
+                  )}
+                  <pre className="settings-mcp-code">{`{
+  "mcpServers": {
+    "taknot": {
+      "command": "node",
+      "args": [${JSON.stringify(mcpInfo?.serverPath || '/path/to/taknot/src/mcp/server.mjs')}],
+      "env": {
+        "TAKNOT_VAULT": ${JSON.stringify(mcpInfo?.vault || '')}
+      }
+    }
+  }
+}`}</pre>
+                  <div className="settings-mcp-actions">
+                    <button
+                      type="button"
+                      className="settings-update-btn"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={async () => {
+                        const serverPath =
+                          mcpInfo?.serverPath ||
+                          '/path/to/taknot/src/mcp/server.mjs';
+                        const vaultPath = mcpInfo?.vault || '';
+                        const snippet = JSON.stringify(
+                          {
+                            mcpServers: {
+                              taknot: {
+                                command: 'node',
+                                args: [serverPath],
+                                env: { TAKNOT_VAULT: vaultPath },
+                              },
+                            },
+                          },
+                          null,
+                          2,
+                        );
+                        try {
+                          await window.taknot.writeClipboard(snippet);
+                          setMcpCopied(true);
+                          setTimeout(() => setMcpCopied(false), 1600);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                    >
+                      {mcpCopied ? 'Copiado' : 'Copiar snippet Cursor'}
+                    </button>
+                  </div>
+                  <p className="settings-hint" style={{ margin: 0 }}>
+                    Merge em <code>~/.cursor/mcp.json</code> e refresh no MCP.
+                    Dev: <code>npm run mcp</code>.
+                  </p>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3 className="settings-section-title">
+                  Sistema
+                  <span className="settings-pill muted">
+                    {appVersion ? `v${appVersion}` : '…'}
                   </span>
-                </span>
-                <input
-                  id="vim-mode"
-                  type="checkbox"
-                  checked={vimMode}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onChange={(e) => setVimMode(e.target.checked)}
-                />
-              </label>
-            </div>
-            <div className="settings-field" style={{ marginTop: 18 }}>
-              <label>
-                Atualizações
-                <strong>{appVersion ? `v${appVersion}` : '…'}</strong>
-              </label>
-              <button
-                type="button"
-                className="settings-update-btn"
-                disabled={updateChecking}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={async () => {
-                  setUpdateChecking(true);
-                  try {
-                    await window.taknot.checkForUpdates();
-                  } catch (err) {
-                    console.error(err);
-                  } finally {
-                    setUpdateChecking(false);
-                  }
-                }}
-              >
-                {updateChecking ? 'Verificando…' : 'Verificar atualizações'}
-              </button>
-              <p className="settings-hint">
-                Quando houver versão nova no GitHub, o app avisa e você pode
-                atualizar sem baixar manualmente.
-              </p>
+                </h3>
+                <div className="settings-card settings-card-stack">
+                  <p className="settings-hint" style={{ margin: 0 }}>
+                    Quando houver versão nova no GitHub, o app avisa e você
+                    pode atualizar sem baixar manualmente.
+                  </p>
+                  <button
+                    type="button"
+                    className="settings-update-btn"
+                    disabled={updateChecking}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={async () => {
+                      setUpdateChecking(true);
+                      try {
+                        await window.taknot.checkForUpdates();
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setUpdateChecking(false);
+                      }
+                    }}
+                  >
+                    {updateChecking ? 'Verificando…' : 'Verificar atualizações'}
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         </>

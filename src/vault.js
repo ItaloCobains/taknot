@@ -1,10 +1,38 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { app } = require('electron');
 const { randomUUID } = require('node:crypto');
+const os = require('node:os')
+
+function defaultUserData() {
+  const home = os.homedir()
+  switch (process.platform) {
+    case 'darwin':
+      return path.join(home, 'Library', 'Application Support', 'taknot')
+    case 'win32':
+      return path.join(
+        process.env.APPDATA || path.join(home, 'AppData', 'Roaming'),
+        'taknot'
+      )
+    default:
+      return path.join(
+        process.env.XDG_CONFIG_HOME || path.join(home, '.config'),
+        'taknot'
+      )
+  }
+}
 
 function vaultRoot() {
-  return path.join(app.getPath('userData'), 'vault');
+  if (process.env.TAKNOT_VAULT) return process.env.TAKNOT_VAULT
+  try {
+    const { app } = require('electron')
+    if (app?.isReady?.() || app?.getPath) {
+      return path.join(app.getPath('userData'), 'vault')
+    }
+  } catch {
+    /* MCP / plain mode */
+  }
+
+  return path.join(defaultUserData(), 'vault')
 }
 
 function metaPath() {
