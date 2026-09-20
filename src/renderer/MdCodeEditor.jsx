@@ -79,6 +79,32 @@ function readVimCursor(view) {
   return { line: line.number, col, pct };
 }
 
+/** Vim Ctrl-d / Ctrl-u: scroll ~half a page and move the cursor with it. */
+function scrollVimHalfPage(view, dir) {
+  const box = view.scrollDOM;
+  const half = Math.max(24, Math.round(box.clientHeight / 2));
+  const maxScroll = Math.max(0, box.scrollHeight - box.clientHeight);
+  box.scrollTop = Math.max(0, Math.min(maxScroll, box.scrollTop + dir * half));
+
+  const head = view.state.selection.main.head;
+  const cur = view.state.doc.lineAt(head);
+  const block = view.lineBlockAt(head);
+  const lineHeight = block.height || view.defaultLineHeight || 18;
+  const lineDelta = Math.max(1, Math.round(half / lineHeight)) * dir;
+  const nextNum = Math.max(
+    1,
+    Math.min(view.state.doc.lines, cur.number + lineDelta),
+  );
+  const next = view.state.doc.line(nextNum);
+  const col = Math.min(head - cur.from, next.length);
+  const pos = next.from + col;
+  view.dispatch({
+    selection: { anchor: pos },
+    effects: EditorView.scrollIntoView(pos, { y: 'nearest' }),
+  });
+  return true;
+}
+
 const coolHighlight = HighlightStyle.define([
   { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700', fontSize: '1.75em' },
   { tag: tags.heading2, color: '#ff7eb6', fontWeight: '700', fontSize: '1.4em' },
@@ -192,6 +218,8 @@ export default function MdCodeEditor({
     [latex],
   );
 
+  const vimModeRef = useRef(vimMode);
+  vimModeRef.current = vimMode;
   const onChangeRef = useRef(onChange);
   const onScrollRef = useRef(onScrollRatio);
   const slashListRef = useRef(slashList);
@@ -446,6 +474,23 @@ export default function MdCodeEditor({
               setSlash(null);
               return true;
             },
+          },
+          // Mac CM maps Ctrl-d → deleteCharForward (emacs). In vim mode, half-page scroll.
+          {
+            key: 'Ctrl-d',
+            run: (view) => {
+              if (!vimModeRef.current) return false;
+              return scrollVimHalfPage(view, 1);
+            },
+            preventDefault: true,
+          },
+          {
+            key: 'Ctrl-u',
+            run: (view) => {
+              if (!vimModeRef.current) return false;
+              return scrollVimHalfPage(view, -1);
+            },
+            preventDefault: true,
           },
           ...defaultKeymap,
           ...historyKeymap,
