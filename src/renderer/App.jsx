@@ -27,6 +27,7 @@ const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
 const TRANSLUCENCY_KEY = 'taknot.translucency';
 const DEFAULT_TRANSLUCENCY = 55;
 const VIM_MODE_KEY = 'taknot.vimMode';
+const TAGS_COLLAPSED_KEY = 'taknot.tagsCollapsed';
 
 /** Depth-first tree order for sidebar nesting. */
 function flattenNotebooks(notebooks) {
@@ -75,6 +76,14 @@ function readStoredTranslucency() {
   const raw = Number(localStorage.getItem(TRANSLUCENCY_KEY));
   if (Number.isFinite(raw)) return Math.min(100, Math.max(0, raw));
   return DEFAULT_TRANSLUCENCY;
+}
+
+function readStoredTagsCollapsed() {
+  try {
+    return localStorage.getItem(TAGS_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function readStoredVimMode() {
@@ -147,6 +156,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
   const [vimMode, setVimMode] = useState(readStoredVimMode);
+  const [tagsCollapsed, setTagsCollapsed] = useState(readStoredTagsCollapsed);
+  const [tagFilterQuery, setTagFilterQuery] = useState('');
   const [appVersion, setAppVersion] = useState("");
   const [mcpInfo, setMcpInfo] = useState(null);
   const [mcpCopied, setMcpCopied] = useState(false);
@@ -234,6 +245,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(VIM_MODE_KEY, vimMode ? '1' : '0');
   }, [vimMode]);
+
+  useEffect(() => {
+    localStorage.setItem(TAGS_COLLAPSED_KEY, tagsCollapsed ? '1' : '0');
+  }, [tagsCollapsed]);
 
   useEffect(() => {
     window.taknot?.getVersion?.().then(setAppVersion).catch(() => {});
@@ -894,6 +909,13 @@ export default function App() {
 
   const shortcut = isMac() ? '⌘-N' : 'Ctrl-N';
   const colorsByTag = useMemo(() => tagColorMap(tags), [tags]);
+  const filteredSidebarTags = useMemo(() => {
+    const q = tagFilterQuery.trim().toLowerCase();
+    if (!q) return tags;
+    return tags.filter((tag) =>
+      String(tag.name || tag).toLowerCase().includes(q),
+    );
+  }, [tags, tagFilterQuery]);
 
   return (
     <div
@@ -1378,7 +1400,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className="sidebar-section">
+        <div className="sidebar-section sidebar-section-fixed">
           <button
             type="button"
             className={`nav-item ${isActive('all') ? 'active' : ''}`}
@@ -1389,7 +1411,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className="sidebar-section">
+        <div className="sidebar-section sidebar-section-scroll">
           <div className="section-head">
             <h2>Notebooks</h2>
             <button
@@ -1405,6 +1427,7 @@ export default function App() {
               <Plus {...ICON} />
             </button>
           </div>
+          <div className="sidebar-section-body">
           {addingNotebook && (
             <form
               className="inline-create"
@@ -1496,9 +1519,10 @@ export default function App() {
             </button>
           ),
           )}
+          </div>
         </div>
 
-        <div className="sidebar-section">
+        <div className="sidebar-section sidebar-section-fixed">
           <h2>Status</h2>
           {STATUSES.map((s) => (
             <button
@@ -1513,33 +1537,71 @@ export default function App() {
           ))}
         </div>
 
-        <div className="sidebar-section">
-          <div className="section-head">
-            <h2>Tags</h2>
+        <div
+          className={`sidebar-section sidebar-section-scroll ${tagsCollapsed ? 'is-collapsed' : ''}`}
+        >
+          <button
+            type="button"
+            className="section-head section-head-toggle"
+            onClick={() => setTagsCollapsed((v) => !v)}
+            title={tagsCollapsed ? 'Expandir tags' : 'Recolher tags'}
+          >
+            <span className="section-head-left">
+              {tagsCollapsed ? (
+                <ChevronRight size={14} strokeWidth={2} />
+              ) : (
+                <ChevronDown size={14} strokeWidth={2} />
+              )}
+              <h2>Tags</h2>
+              {tags.length > 0 && (
+                <span className="section-count">{tags.length}</span>
+              )}
+            </span>
             <Tag {...ICON} className="section-icon" />
-          </div>
-          {tags.length === 0 && <p className="muted">—</p>}
-          {tags.map((tag) => (
-            <button
-              key={tag.id || tag.name || tag}
-              type="button"
-              className={`nav-item ${isActive('tag', tag.name || tag) ? 'active' : ''}`}
-              onClick={() => setFilter({ type: 'tag', id: tag.name || tag })}
-              onContextMenu={(e) =>
-                tag.id ? openTagMenu(e, tag) : undefined
-              }
-            >
-              <span
-                className="tag-dot"
-                style={
-                  tag.color
-                    ? { background: tag.color, borderColor: tag.color }
-                    : undefined
-                }
-              />
-              {tag.name || tag}
-            </button>
-          ))}
+          </button>
+          {!tagsCollapsed && (
+            <div className="sidebar-section-body">
+              {tags.length > 6 && (
+                <div className="tag-filter-wrap">
+                  <Search size={13} strokeWidth={2} className="tag-filter-icon" />
+                  <input
+                    type="search"
+                    className="tag-filter-input"
+                    placeholder="Filtrar tags…"
+                    value={tagFilterQuery}
+                    onChange={(e) => setTagFilterQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {tags.length === 0 && <p className="muted">—</p>}
+              {tags.length > 0 && filteredSidebarTags.length === 0 && (
+                <p className="muted tag-filter-empty">Nenhuma tag</p>
+              )}
+              {filteredSidebarTags.map((tag) => (
+                <button
+                  key={tag.id || tag.name || tag}
+                  type="button"
+                  className={`nav-item ${isActive('tag', tag.name || tag) ? 'active' : ''}`}
+                  onClick={() => setFilter({ type: 'tag', id: tag.name || tag })}
+                  onContextMenu={(e) =>
+                    tag.id ? openTagMenu(e, tag) : undefined
+                  }
+                >
+                  <span
+                    className="tag-dot"
+                    style={
+                      tag.color
+                        ? { background: tag.color, borderColor: tag.color }
+                        : undefined
+                    }
+                  />
+                  {tag.name || tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
