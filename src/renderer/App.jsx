@@ -153,6 +153,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [note, setNote] = useState(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [templateQuery, setTemplateQuery] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('blank');
   const [customTemplates, setCustomTemplates] = useState([])
@@ -345,6 +346,12 @@ export default function App() {
   useEffect(() => {
     if (typeof window.taknot?.onVaultChanged !== 'function') return undefined;
     return window.taknot.onVaultChanged(() => {
+      // Ignore our own autosave writes — reloading would reset the editor cursor.
+      if (savingRef.current) {
+        refreshMeta().catch(console.error);
+        refreshNotes().catch(console.error);
+        return;
+      }
       refreshMeta().catch(console.error);
       refreshNotes()
         .then(async (list) => {
@@ -359,6 +366,24 @@ export default function App() {
           // Don't clobber in-progress edits.
           if (current && noteSnapshot(current) !== saveBaselineRef.current) return;
           const n = await window.taknot.getNote(id);
+          // Same body → only refresh meta fields (avoid CodeMirror doc replace).
+          if (current && current.body === n.body) {
+            setNote((prev) =>
+              prev && prev.id === n.id
+                ? {
+                    ...prev,
+                    title: n.title,
+                    updatedAt: n.updatedAt,
+                    pinned: Boolean(n.pinned),
+                    status: n.status,
+                    tags: n.tags,
+                    notebookId: n.notebookId,
+                  }
+                : prev,
+            );
+            saveBaselineRef.current = noteSnapshot({ ...current, ...n, body: current.body });
+            return;
+          }
           setNote(n);
           saveBaselineRef.current = noteSnapshot(n);
         })
@@ -399,6 +424,7 @@ export default function App() {
     };
     const snap = JSON.stringify(payload);
     if (!force && snap === saveBaselineRef.current) return n;
+    savingRef.current = true;
     setSaving(true);
     try {
       const saved = await window.taknot.saveNote(payload);
@@ -434,27 +460,26 @@ export default function App() {
       return null;
     } finally {
       setSaving(false);
+      // Let fs.watch settle before accepting external vault reloads.
+      setTimeout(() => {
+        savingRef.current = false;
+      }, 250);
     }
   }, []);
 
+  // Debounced autosave. Cleanup must ONLY clear the timer — persisting on
+  // every dependency change was saving on each keystroke and racing vault:changed,
+  // which reloaded the note and reset the CodeMirror cursor.
   useEffect(() => {
     if (!note?.id) return undefined;
     const snap = noteSnapshot(note);
     if (snap === saveBaselineRef.current) return undefined;
 
     const handle = setTimeout(() => {
-      persistNote(note);
-    }, 400);
-    return () => {
-      clearTimeout(handle);
       const latest = noteRef.current;
-      if (
-        latest?.id === note.id &&
-        noteSnapshot(latest) !== saveBaselineRef.current
-      ) {
-        void persistNote(latest);
-      }
-    };
+      if (latest?.id) void persistNote(latest);
+    }, 600);
+    return () => clearTimeout(handle);
   }, [
     note?.id,
     note?.body,
@@ -464,6 +489,19 @@ export default function App() {
     note?.pinned,
     persistNote,
   ]);
+
+  // Flush pending edits when switching notes or unmounting.
+  useEffect(() => {
+    return () => {
+      const latest = noteRef.current;
+      if (
+        latest?.id &&
+        noteSnapshot(latest) !== saveBaselineRef.current
+      ) {
+        void persistNote(latest);
+      }
+    };
+  }, [selectedId, persistNote]);
 
   async function togglePin() {
     if (!note?.id) return;
@@ -669,6 +707,13 @@ export default function App() {
           return;
         }
         if (focusMode) {
+          // In vim mode, Esc must reach CodeMirror (insert → normal), not exit focus.
+          if (
+            vimMode &&
+            e.target?.closest?.('.cm-editor, .md-code-editor, .md-code-wrap')
+          ) {
+            return;
+          }
           e.preventDefault();
           setFocusMode(false);
           return;
@@ -823,6 +868,7 @@ export default function App() {
     settingsOpen,
     focusMode,
     graphOpen,
+    vimMode,
     persistNote,
   ]);
 

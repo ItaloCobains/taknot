@@ -651,10 +651,21 @@ export default function MdCodeEditor({
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
+    const next = value || '';
     const current = view.state.doc.toString();
-    if ((value || '') === current) return;
+    if (next === current) return;
+    const sel = view.state.selection.main;
+    const scrollTop = view.scrollDOM.scrollTop;
+    const anchor = Math.min(sel.anchor, next.length);
+    const head = Math.min(sel.head, next.length);
     view.dispatch({
-      changes: { from: 0, to: current.length, insert: value || '' },
+      changes: { from: 0, to: current.length, insert: next },
+      selection: { anchor, head },
+    });
+    requestAnimationFrame(() => {
+      if (viewRef.current === view) {
+        view.scrollDOM.scrollTop = scrollTop;
+      }
     });
   }, [value]);
 
