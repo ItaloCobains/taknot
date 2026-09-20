@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('taknot', {
   saveTag: (tag) => ipcRenderer.invoke('vault:saveTag', tag),
   deleteTag: (id) => ipcRenderer.invoke('vault:deleteTag', id),
   listNotes: (filter) => ipcRenderer.invoke('vault:listNotes', filter),
+  getWikiGraph: () => ipcRenderer.invoke('vault:getWikiGraph'),
   getNote: (id) => ipcRenderer.invoke('vault:getNote', id),
   saveNote: (note) => ipcRenderer.invoke('vault:saveNote', note),
   createNote: (opts) => ipcRenderer.invoke('vault:createNote', opts),

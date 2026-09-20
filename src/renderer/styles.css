@@ -2597,3 +2597,103 @@ textarea.editor {
 .hotkey-conflict {
   color: #f87171 !important;
 }
+
+
+.app.graph-open > .note-list,
+.app.graph-open > .editor-pane {
+  display: none;
+}
+
+.app.graph-open > .graph-view {
+  display: flex;
+}
+
+.graph-view {
+  display: none;
+  grid-column: 2 / -1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pane);
+  border-right: none;
+}
+
+.graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+
+.graph-header-left,
+.graph-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.graph-header-left strong {
+  font-size: 13px;
+}
+
+.graph-stats {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.graph-filter {
+  width: 180px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  cursor: grab;
+  overflow: hidden;
+}
+
+.graph-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+.graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.graph-overlay.error {
+  color: #f87171;
+}
+
+.graph-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}

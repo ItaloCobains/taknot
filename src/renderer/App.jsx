@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ListTodo,
   NotebookPen,
+  Network,
   PanelLeft,
   Pin,
   PenLine,
@@ -16,6 +17,7 @@ import {
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
 import QuickSearch from './QuickSearch.jsx';
+import GraphView from './GraphView.jsx';
 import HotkeySettings, { useHotkeysState } from './HotkeySettings.jsx';
 import { eventMatchesHotkey, formatHotkey } from './hotkeys.js';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
@@ -172,6 +174,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
   const [addingNotebook, setAddingNotebook] = useState(false);
   const [addingUnderId, setAddingUnderId] = useState(null);
   const [notebookDraft, setNotebookDraft] = useState('');
@@ -670,6 +673,11 @@ export default function App() {
           setFocusMode(false);
           return;
         }
+        if (graphOpen) {
+          e.preventDefault();
+          setGraphOpen(false);
+          return;
+        }
         return;
       }
 
@@ -814,6 +822,7 @@ export default function App() {
     quickSearchOpen,
     settingsOpen,
     focusMode,
+    graphOpen,
     persistNote,
   ]);
 
@@ -1105,7 +1114,7 @@ export default function App() {
     <div
       className={`app ${settingsOpen ? 'settings-open' : ''} ${tagEdit || notebookDetail || quickSearchOpen ? 'modal-open' : ''
         } ${nbMenu || tagMenu || iconPicker || movePicker ? 'menu-open' : ''
-        } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'}`}
+        } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'} ${graphOpen ? 'graph-open' : ''}`}
     >
       {nbMenu && (
         <div
@@ -1589,11 +1598,22 @@ export default function App() {
         <div className="sidebar-section sidebar-section-fixed">
           <button
             type="button"
-            className={`nav-item ${isActive('all') ? 'active' : ''}`}
-            onClick={() => setFilter({ type: 'all' })}
+            className={`nav-item ${isActive('all') && !graphOpen ? 'active' : ''}`}
+            onClick={() => {
+              setGraphOpen(false);
+              setFilter({ type: 'all' });
+            }}
           >
             <NotebookPen {...ICON} />
             All Notes
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${graphOpen ? 'active' : ''}`}
+            onClick={() => setGraphOpen(true)}
+          >
+            <Network {...ICON} />
+            Graph
           </button>
         </div>
 
@@ -1790,6 +1810,17 @@ export default function App() {
           )}
         </div>
       </aside>
+
+      {graphOpen && (
+        <GraphView
+          selectedId={selectedId}
+          onClose={() => setGraphOpen(false)}
+          onOpenNote={(id) => {
+            setGraphOpen(false);
+            selectNote(id);
+          }}
+        />
+      )}
 
       <section className="note-list">
         <header className="pane-header list-header">

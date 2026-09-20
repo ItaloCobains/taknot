@@ -169,6 +169,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('vault:saveTag', (_e, tag) => vault.saveTag(tag));
   ipcMain.handle('vault:deleteTag', (_e, id) => vault.deleteTag(id));
   ipcMain.handle('vault:listNotes', (_e, filter) => vault.listNotes(filter));
+  ipcMain.handle('vault:getWikiGraph', () => vault.getWikiGraph());
   ipcMain.handle('vault:getNote', (_e, id) => vault.getNote(id));
   ipcMain.handle('vault:saveNote', (_e, note) => vault.saveNote(note));
   ipcMain.handle('vault:createNote', (_e, opts) => vault.createNote(opts));

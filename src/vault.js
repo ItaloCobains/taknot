@@ -175,6 +175,48 @@ async function deleteTag(id) {
   await writeMeta(meta);
 }
 
+
+function extractWikiTitles(body) {
+  const titles = [];
+  const re = /\[\[([^\]\n]+?)\]\]/g;
+  let m;
+  while ((m = re.exec(body || ''))) {
+    const title = String(m[1] || '').trim();
+    if (title) titles.push(title);
+  }
+  return titles;
+}
+
+async function getWikiGraph() {
+  const meta = await readMeta();
+  const nodes = meta.notes.map((n) => ({
+    id: n.id,
+    title: n.title,
+    status: n.status || 'active',
+    pinned: Boolean(n.pinned),
+    notebookId: n.notebookId,
+  }));
+  const byTitle = new Map(
+    nodes.map((n) => [String(n.title || '').trim().toLowerCase(), n.id]),
+  );
+  const edgeKey = new Set();
+  const edges = [];
+  for (const n of meta.notes) {
+    const body = await fs.readFile(notePath(n.id), 'utf8').catch(() => '');
+    for (const title of extractWikiTitles(body)) {
+      const target = byTitle.get(title.toLowerCase());
+      if (!target || target === n.id) continue;
+      const key = n.id < target ? `${n.id}::${target}` : `${target}::${n.id}`;
+      // Keep directed edges for "links to", but dedupe identical pairs either way? keep directed
+      const dkey = `${n.id}->${target}`;
+      if (edgeKey.has(dkey)) continue;
+      edgeKey.add(dkey);
+      edges.push({ source: n.id, target });
+    }
+  }
+  return { nodes, edges };
+}
+
 function countTasks(body) {
   const text = body || '';
   const total = (text.match(/^\s*[-*+]\s+\[[ xX]\]/gm) || []).length;
@@ -463,6 +505,7 @@ module.exports = {
   listNotebooks,
   listTags,
   listNotes,
+  getWikiGraph,
   getNote,
   saveNote,
   createNote,
