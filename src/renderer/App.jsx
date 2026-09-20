@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
+import QuickSearch from './QuickSearch.jsx';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
@@ -154,6 +155,7 @@ export default function App() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [focusMode, setFocusMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [addingNotebook, setAddingNotebook] = useState(false);
   const [addingUnderId, setAddingUnderId] = useState(null);
   const [notebookDraft, setNotebookDraft] = useState('');
@@ -606,6 +608,11 @@ export default function App() {
         e.preventDefault();
         setSidebarOpen((v) => !v);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setQuickSearchOpen((v) => !v);
+        setFocusMode(false);
+      }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -890,7 +897,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${settingsOpen ? 'settings-open' : ''} ${tagEdit || notebookDetail ? 'modal-open' : ''
+      className={`app ${settingsOpen ? 'settings-open' : ''} ${tagEdit || notebookDetail || quickSearchOpen ? 'modal-open' : ''
         } ${nbMenu || tagMenu || iconPicker || movePicker ? 'menu-open' : ''
         } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'}`}
     >
@@ -1343,6 +1350,13 @@ export default function App() {
           </div>
         </>
       )}
+
+      <QuickSearch
+        open={quickSearchOpen}
+        onClose={() => setQuickSearchOpen(false)}
+        onSelect={(id) => selectNote(id)}
+        colorsByTag={colorsByTag}
+      />
 
       <aside className="sidebar">
         <div className="sidebar-top">
