@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('taknot', {
   duplicateNote: (id) => ipcRenderer.invoke('vault:duplicateNote', id),
   deleteNote: (id) => ipcRenderer.invoke('vault:deleteNote', id),
   writeClipboard: (text) => ipcRenderer.invoke('clipboard:writeText', text),
+  exportNotePdf: (payload) => ipcRenderer.invoke('note:exportPdf', payload),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),

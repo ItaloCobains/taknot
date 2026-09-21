@@ -9,6 +9,7 @@ import {
   Copy,
   Eye,
   FileDown,
+  FileText,
   Hash,
   ListTodo,
   Maximize2,
@@ -143,6 +144,23 @@ export default function EditorPane({
     }
   }
 
+
+  async function exportPdf() {
+    setMenuOpen(false);
+    try {
+      const html = renderMarkdown(note.body || '', { wiki: false });
+      const result = await window.taknot.exportNotePdf({
+        title: note.title || 'note',
+        html,
+      });
+      if (result?.ok === false && !result?.canceled) {
+        console.error('PDF export failed', result.error);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function exportMarkdown() {
     setMenuOpen(false);
     const blob = new Blob([note.body || ''], { type: 'text/markdown' });
@@ -261,6 +279,9 @@ export default function EditorPane({
               </button>
               <button type="button" role="menuitem" onClick={exportMarkdown}>
                 <FileDown size={14} strokeWidth={1.75} /> Export Markdown
+              </button>
+              <button type="button" role="menuitem" onClick={exportPdf}>
+                <FileText size={14} strokeWidth={1.75} /> Export PDF
               </button>
               <div className="menu-sep" />
               <button
