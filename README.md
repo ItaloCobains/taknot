@@ -19,7 +19,7 @@ App de notas em **Markdown** para o desktop — rápido, com visual glass no mac
 - **Templates** built-in + templates custom (criar / editar / apagar)
 - **Focus mode**, translucidez ajustável, autosave no vault local
 - **Liquid glass** nativo no macOS 26+ (`electron-liquid-glass`); Windows/Linux usam fundo sólido
-- **MCP server** (stdio) — agentes de IA leem/criam/editam notas, tags e notebooks no mesmo vault
+- **MCP server** (HTTP localhost) — ao abrir o app, agentes de IA leem/criam/editam notas, tags e notebooks no mesmo vault
 - **LaTeX** no preview (KaTeX), `/` LaTeX e autocomplete `\frac` em math
 
 ## Stack
@@ -53,8 +53,7 @@ Depois de mudar código do **main** / `vault.js` / `preload.js`, no terminal do 
 | `npm run package` | Empacota sem instaladores |
 | `npm run make` | Gera instaladores locais em `out/` |
 | `npm run publish` | Make + upload para GitHub Releases |
-| `npm run mcp` | Sobe o servidor MCP (stdio) — use via cliente, não no terminal interativo |
-| `npx taknot-mcp` / `bin/taknot-mcp` | Mesmo server (após clone + `npm i`) |
+| `npm run mcp:smoke` | Sobe MCP HTTP em processo Node (vault temp) e exercita as tools |
 
 ## Onde ficam as notas
 
@@ -80,43 +79,31 @@ Os arquivos `latest.yml` / `latest-mac.yml` / `latest-linux.yml` são gerados no
 
 ## MCP (AI agents)
 
-O app **não** inicia o MCP sozinho. O Cursor (ou outro harness) sobe um processo stdio que fala com o mesmo vault.
+Ao **abrir o taknot**, o app sobe um servidor MCP HTTP em `http://127.0.0.1:19841/mcp` (só localhost). O Cursor só precisa da URL — sem `server.mjs` e sem path do vault.
 
-```bash
-npm install
-npm run mcp
-# ou: ./bin/taknot-mcp
-```
-
-Variável opcional:
-
-```bash
-export TAKNOT_VAULT="$HOME/Library/Application Support/taknot/vault"
-```
+Porta: `19841` (ou `TAKNOT_MCP_PORT`). Se a porta estiver ocupada, tenta as próximas.
 
 ### Cursor (`~/.cursor/mcp.json`)
 
-Faça merge com servers existentes:
+Faça merge com servers existentes (app precisa estar aberto):
 
 ```json
 {
   "mcpServers": {
     "taknot": {
-      "command": "node",
-      "args": ["/ABS/PATH/taknot/src/mcp/server.mjs"],
-      "env": {
-        "TAKNOT_VAULT": "/ABS/PATH/Library/Application Support/taknot/vault"
-      }
+      "url": "http://127.0.0.1:19841/mcp"
     }
   }
 }
 ```
 
-No macOS o vault padrão é `~/Library/Application Support/taknot/vault`. Em **Settings → MCP** o app mostra o path e um botão para copiar o snippet.
+Em **Settings → MCP** o app mostra vault, status e um botão para copiar o snippet.
 
 Tools: notes (`list/get/create/update/delete/duplicate`), tags (`list/save/delete`), notebooks (`list/create/rename/icon/move/delete`). Inbox (`nb_inbox`) não pode ser apagado.
 
-Com o app aberto, mudanças feitas pelo agente disparam refresh na UI (`fs.watch` no vault).
+Mudanças feitas pelo agente disparam refresh na UI (`fs.watch` no vault).
+
+Smoke (sem GUI): `npm run mcp:smoke`.
 
 ## Release
 
@@ -144,13 +131,11 @@ git push origin v0.0.9
 
 ```text
 src/
-  main.js          # processo principal Electron (+ vault watch)
+  main.js          # processo principal Electron (+ vault watch + MCP HTTP)
+  mcpHttp.js       # MCP Streamable HTTP (localhost)
   preload.js       # bridge IPC
   vault.js         # notebooks, notes, tags, templates
-  mcp/server.mjs   # MCP stdio (AI agents)
   renderer/        # React UI + CodeMirror
-bin/
-  taknot-mcp       # CLI entry → src/mcp/server.mjs
 ```
 
 ## License

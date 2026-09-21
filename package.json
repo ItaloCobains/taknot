@@ -7,7 +7,6 @@
   "private": true,
   "scripts": {
     "start": "electron-forge start",
-    "mcp": "node src/mcp/server.mjs",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
@@ -79,8 +78,5 @@
   },
   "optionalDependencies": {
     "electron-liquid-glass": "^1.1.1"
-  },
-  "bin": {
-    "taknot-mcp": "bin/taknot-mcp"
   }
 }

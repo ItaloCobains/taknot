@@ -1505,14 +1505,13 @@ export default function App() {
               <section className="settings-section">
                 <h3 className="settings-section-title">
                   MCP
-                  <span className="settings-pill">stdio</span>
+                  <span className="settings-pill">HTTP</span>
                 </h3>
                 <div className="settings-card settings-card-stack">
                   <p className="settings-hint" style={{ margin: 0 }}>
-                    Abrir o taknot <strong>não</strong> inicia o servidor MCP.
-                    O Cursor (ou outro harness) sobe o processo sob demanda.
-                    O app só observa o vault e atualiza a UI quando um agente
-                    escreve.
+                    Abrir o taknot <strong>sobe</strong> o servidor MCP em
+                    localhost. Deixe o app aberto e aponte o Cursor para a URL
+                    abaixo (plug and play — sem <code>server.mjs</code>).
                   </p>
                   {mcpInfo?.vault ? (
                     <div className="settings-kv">
@@ -1524,14 +1523,18 @@ export default function App() {
                       Reinicie o app se o path do vault não aparecer.
                     </p>
                   )}
+                  <div className="settings-kv">
+                    <span>Status</span>
+                    <code>
+                      {mcpInfo?.running
+                        ? `online · ${mcpInfo.url || ''}`
+                        : 'offline — abra o app'}
+                    </code>
+                  </div>
                   <pre className="settings-mcp-code">{`{
   "mcpServers": {
     "taknot": {
-      "command": "node",
-      "args": [${JSON.stringify(mcpInfo?.serverPath || '/path/to/taknot/src/mcp/server.mjs')}],
-      "env": {
-        "TAKNOT_VAULT": ${JSON.stringify(mcpInfo?.vault || '')}
-      }
+      "url": ${JSON.stringify(mcpInfo?.url || 'http://127.0.0.1:19841/mcp')}
     }
   }
 }`}</pre>
@@ -1541,17 +1544,13 @@ export default function App() {
                       className="settings-update-btn"
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={async () => {
-                        const serverPath =
-                          mcpInfo?.serverPath ||
-                          '/path/to/taknot/src/mcp/server.mjs';
-                        const vaultPath = mcpInfo?.vault || '';
+                        const url =
+                          mcpInfo?.url || 'http://127.0.0.1:19841/mcp';
                         const snippet = JSON.stringify(
                           {
                             mcpServers: {
                               taknot: {
-                                command: 'node',
-                                args: [serverPath],
-                                env: { TAKNOT_VAULT: vaultPath },
+                                url,
                               },
                             },
                           },
@@ -1572,7 +1571,7 @@ export default function App() {
                   </div>
                   <p className="settings-hint" style={{ margin: 0 }}>
                     Merge em <code>~/.cursor/mcp.json</code> e refresh no MCP.
-                    Dev: <code>npm run mcp</code>.
+                    O app precisa estar aberto.
                   </p>
                 </div>
               </section>

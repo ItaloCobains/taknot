@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const vault = require('./vault');
 const { initAutoUpdate, checkForUpdates } = require('./autoUpdate');
 const spellService = require('./spellService');
+const { startMcpHttp, stopMcpHttp, getMcpHttpStatus } = require('./mcpHttp');
 
 
 /** Enable Chromium/macOS spellchecker for the note window (pt-BR + en-US when available). */
@@ -214,21 +215,13 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('app:getVersion', () => app.getVersion());
   ipcMain.handle('mcp:getInfo', () => {
-    const cwdServer = path.join(process.cwd(), 'src', 'mcp', 'server.mjs');
-    const appServer = path.join(app.getAppPath(), 'src', 'mcp', 'server.mjs');
-    let serverPath = cwdServer;
-    try {
-      const fs = require('node:fs');
-      if (!fs.existsSync(cwdServer) && fs.existsSync(appServer)) {
-        serverPath = appServer;
-      }
-    } catch {
-      /* keep cwdServer */
-    }
+    const status = getMcpHttpStatus();
     return {
       vault: vault.vaultRoot(),
-      serverPath,
-      startedByApp: false,
+      url: status.url,
+      port: status.port,
+      running: status.running,
+      startedByApp: true,
     };
   });
   ipcMain.handle('app:checkForUpdates', async () => {
@@ -246,6 +239,11 @@ app.whenReady().then(async () => {
   });
 
   spellService.initSpellService();
+  try {
+    await startMcpHttp({ vault, version: app.getVersion() });
+  } catch (err) {
+    console.warn('[taknot] MCP HTTP failed to start', err?.message || err);
+  }
   createWindow();
   watchVault();
   initAutoUpdate();
@@ -254,6 +252,12 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
+  });
+});
+
+app.on('before-quit', () => {
+  stopMcpHttp().catch((err) => {
+    console.warn('[taknot] MCP HTTP stop failed', err?.message || err);
   });
 });
 
