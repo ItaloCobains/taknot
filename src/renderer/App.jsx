@@ -18,131 +18,30 @@ import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
 import QuickSearch from './QuickSearch.jsx';
 import GraphView from './GraphView.jsx';
-import HotkeySettings, { useHotkeysState } from './HotkeySettings.jsx';
+import { useHotkeysState } from './HotkeySettings.jsx';
 import { eventMatchesHotkey, formatHotkey } from './hotkeys.js';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { STATUSES } from './statuses.js';
 import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
 import { renderMarkdown } from './markdown.js';
+import { flattenNotebooks, descendantIds } from './lib/notebooks.js';
+import {
+  TRANSLUCENCY_KEY,
+  VIM_MODE_KEY,
+  TAGS_COLLAPSED_KEY,
+  readStoredTranslucency,
+  readStoredTagsCollapsed,
+  readStoredVimMode,
+  applyTranslucency,
+} from './lib/prefs.js';
+import { relativeTime, titleFromBody } from './lib/format.js';
+import SettingsPanel from './SettingsPanel.jsx';
+import TagSettingsModal from './TagSettingsModal.jsx';
+import NotebookDetailModal from './NotebookDetailModal.jsx';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
-const TRANSLUCENCY_KEY = 'taknot.translucency';
-const DEFAULT_TRANSLUCENCY = 55;
-const VIM_MODE_KEY = 'taknot.vimMode';
-const TAGS_COLLAPSED_KEY = 'taknot.tagsCollapsed';
-
-/** Depth-first tree order for sidebar nesting. */
-function flattenNotebooks(notebooks) {
-  const byParent = new Map();
-  for (const nb of notebooks) {
-    const p = nb.parentId || null;
-    if (!byParent.has(p)) byParent.set(p, []);
-    byParent.get(p).push(nb);
-  }
-  const out = [];
-  function walk(parentId, depth) {
-    for (const nb of byParent.get(parentId) || []) {
-      out.push({ ...nb, depth });
-      walk(nb.id, depth + 1);
-    }
-  }
-  walk(null, 0);
-  for (const nb of notebooks) {
-    if (!out.some((x) => x.id === nb.id)) out.push({ ...nb, depth: 0 });
-  }
-  return out;
-}
-
-function descendantIds(notebooks, rootId) {
-  const kids = new Map();
-  for (const nb of notebooks) {
-    const p = nb.parentId || null;
-    if (!kids.has(p)) kids.set(p, []);
-    kids.get(p).push(nb.id);
-  }
-  const out = new Set();
-  const stack = [rootId];
-  while (stack.length) {
-    const id = stack.pop();
-    for (const child of kids.get(id) || []) {
-      if (!out.has(child)) {
-        out.add(child);
-        stack.push(child);
-      }
-    }
-  }
-  return out;
-}
-
-function readStoredTranslucency() {
-  const raw = Number(localStorage.getItem(TRANSLUCENCY_KEY));
-  if (Number.isFinite(raw)) return Math.min(100, Math.max(0, raw));
-  return DEFAULT_TRANSLUCENCY;
-}
-
-function readStoredTagsCollapsed() {
-  try {
-    return localStorage.getItem(TAGS_COLLAPSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function readStoredVimMode() {
-  return localStorage.getItem(VIM_MODE_KEY) === '1';
-}
-
-function applyTranslucency(pct) {
-  // 0% ≈ sólido legível, 100% ≈ glass extremo (quase só o blur nativo)
-  const t = Math.min(100, Math.max(0, pct));
-  const alpha = 0.88 - (t / 100) * 0.86; // 100% → 0.02
-  const root = document.documentElement;
-  root.style.setProperty('--pane-alpha', String(alpha));
-  root.style.setProperty(
-    '--pane-strong-alpha',
-    String(Math.min(0.92, alpha + 0.03)),
-  );
-  root.style.setProperty(
-    '--surface-alpha',
-    String(Math.max(0.04, alpha * 0.7)),
-  );
-}
-
-const TAG_SWATCHES = [
-  '#e06c75',
-  '#e5c07b',
-  '#98c379',
-  '#61afef',
-  '#c678dd',
-  '#56b6c2',
-  '#d19a66',
-  '#8b93a7',
-];
-
-function relativeTime(iso) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-function titleFromBody(body) {
-  const line = (body || '').split('\n').find((l) => l.trim());
-  if (!line) return 'Untitled';
-  return line.replace(/^#+\s*/, '').trim() || 'Untitled';
-}
-
-function isMac() {
-  return navigator.platform.toUpperCase().includes('MAC');
-}
 
 export default function App() {
   const [notebooks, setNotebooks] = useState([]);
@@ -1323,295 +1222,35 @@ export default function App() {
         </div>
       )}
 
-      {tagEdit && (
-        <>
-          <button
-            type="button"
-            className="settings-backdrop"
-            aria-label="Close"
-            onClick={() => setTagEdit(null)}
-          />
-          <div
-            className="settings-panel"
-            role="dialog"
-            aria-label="Tag settings"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="settings-panel-header">
-              <span>Tag Settings</span>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setTagEdit(null)}
-              >
-                <X {...ICON} />
-              </button>
-            </div>
-            <div className="settings-field">
-              <label htmlFor="tag-name">Name</label>
-              <input
-                id="tag-name"
-                className="settings-text"
-                value={tagEdit.name}
-                onChange={(e) =>
-                  setTagEdit((t) => ({ ...t, name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="settings-field" style={{ marginTop: 14 }}>
-              <label>Color</label>
-              <div className="tag-swatches">
-                {TAG_SWATCHES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`tag-swatch ${(tagEdit.color || '').toLowerCase() === c ? 'active' : ''
-                      }`}
-                    style={{ background: c }}
-                    aria-label={c}
-                    title={c}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setTagEdit((t) => ({ ...t, color: c }));
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="settings-save-btn"
-              onClick={commitTagEdit}
-            >
-              Save
-            </button>
-          </div>
-        </>
-      )}
+      <TagSettingsModal
+        tagEdit={tagEdit}
+        onChange={setTagEdit}
+        onClose={() => setTagEdit(null)}
+        onSave={commitTagEdit}
+      />
 
-      {notebookDetail && (
-        <>
-          <button
-            type="button"
-            className="settings-backdrop"
-            aria-label="Close"
-            onClick={() => setNotebookDetail(null)}
-          />
-          <div className="settings-panel notebook-detail" role="dialog">
-            <div className="settings-panel-header">
-              <span>Notebook detail</span>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setNotebookDetail(null)}
-              >
-                <X {...ICON} />
-              </button>
-            </div>
-            <p>
-              <strong>{notebookDetail.name}</strong>
-            </p>
-            <p className="settings-hint">ID: {notebookDetail.id}</p>
-            <p className="settings-hint">Notes: {notebookDetail.noteCount}</p>
-          </div>
-        </>
-      )}
+      <NotebookDetailModal
+        notebook={notebookDetail}
+        onClose={() => setNotebookDetail(null)}
+      />
 
-      {settingsOpen && (
-        <>
-          <div
-            className="settings-backdrop"
-            role="presentation"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setSettingsOpen(false);
-            }}
-          />
-          <div
-            className="settings-panel"
-            role="dialog"
-            aria-label="Settings"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="settings-panel-header">
-              <span>Settings</span>
-              <button
-                type="button"
-                className="icon-btn"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSettingsOpen(false);
-                }}
-              >
-                <X {...ICON} />
-              </button>
-            </div>
-            <div className="settings-body">
-              <section className="settings-section">
-                <h3 className="settings-section-title">Aparência</h3>
-                <div className="settings-card">
-                  <div className="settings-field">
-                    <label htmlFor="pane-translucency">
-                      Translucency
-                      <strong>{translucency}%</strong>
-                    </label>
-                    <input
-                      id="pane-translucency"
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={translucency}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onChange={(e) => setTranslucency(Number(e.target.value))}
-                    />
-                    <p className="settings-hint">
-                      100% = liquid glass extremo. 0% = bem sólido e legível.
-                    </p>
-                  </div>
-                </div>
-              </section>
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        translucency={translucency}
+        onTranslucencyChange={setTranslucency}
+        vimMode={vimMode}
+        onVimModeChange={setVimMode}
+        hotkeys={hotkeys}
+        onHotkeysChange={setHotkeys}
+        mcpInfo={mcpInfo}
+        mcpCopied={mcpCopied}
+        onMcpCopied={setMcpCopied}
+        appVersion={appVersion}
+        updateChecking={updateChecking}
+        onUpdateChecking={setUpdateChecking}
+      />
 
-              <section className="settings-section">
-                <h3 className="settings-section-title">Editor</h3>
-                <div className="settings-card">
-                  <label className="settings-toggle" htmlFor="vim-mode">
-                    <span>
-                      Vim mode
-                      <span className="settings-hint" style={{ display: 'block', margin: 0 }}>
-                        Atalhos Vim no markdown (hjkl, modes, etc.).
-                      </span>
-                    </span>
-                    <input
-                      id="vim-mode"
-                      type="checkbox"
-                      checked={vimMode}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onChange={(e) => setVimMode(e.target.checked)}
-                    />
-                  </label>
-                </div>
-              </section>
-
-              <HotkeySettings hotkeys={hotkeys} onChange={setHotkeys} />
-
-              <section className="settings-section">
-                <h3 className="settings-section-title">
-                  MCP
-                  <span className="settings-pill">HTTP</span>
-                </h3>
-                <div className="settings-card settings-card-stack">
-                  <p className="settings-hint" style={{ margin: 0 }}>
-                    Abrir o taknot <strong>sobe</strong> o servidor MCP em
-                    localhost. Deixe o app aberto e aponte o Cursor para a URL
-                    abaixo (plug and play — sem <code>server.mjs</code>).
-                  </p>
-                  {mcpInfo?.vault ? (
-                    <div className="settings-kv">
-                      <span>Vault</span>
-                      <code>{mcpInfo.vault}</code>
-                    </div>
-                  ) : (
-                    <p className="settings-hint" style={{ margin: 0 }}>
-                      Reinicie o app se o path do vault não aparecer.
-                    </p>
-                  )}
-                  <div className="settings-kv">
-                    <span>Status</span>
-                    <code>
-                      {mcpInfo?.running
-                        ? `online · ${mcpInfo.url || ''}`
-                        : 'offline — abra o app'}
-                    </code>
-                  </div>
-                  <pre className="settings-mcp-code">{`{
-  "mcpServers": {
-    "taknot": {
-      "url": ${JSON.stringify(mcpInfo?.url || 'http://127.0.0.1:19841/mcp')}
-    }
-  }
-}`}</pre>
-                  <div className="settings-mcp-actions">
-                    <button
-                      type="button"
-                      className="settings-update-btn"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={async () => {
-                        const url =
-                          mcpInfo?.url || 'http://127.0.0.1:19841/mcp';
-                        const snippet = JSON.stringify(
-                          {
-                            mcpServers: {
-                              taknot: {
-                                url,
-                              },
-                            },
-                          },
-                          null,
-                          2,
-                        );
-                        try {
-                          await window.taknot.writeClipboard(snippet);
-                          setMcpCopied(true);
-                          setTimeout(() => setMcpCopied(false), 1600);
-                        } catch (err) {
-                          console.error(err);
-                        }
-                      }}
-                    >
-                      {mcpCopied ? 'Copiado' : 'Copiar snippet Cursor'}
-                    </button>
-                  </div>
-                  <p className="settings-hint" style={{ margin: 0 }}>
-                    Merge em <code>~/.cursor/mcp.json</code> e refresh no MCP.
-                    O app precisa estar aberto.
-                  </p>
-                </div>
-              </section>
-
-              <section className="settings-section">
-                <h3 className="settings-section-title">
-                  Sistema
-                  <span className="settings-pill muted">
-                    {appVersion ? `v${appVersion}` : '…'}
-                  </span>
-                </h3>
-                <div className="settings-card settings-card-stack">
-                  <p className="settings-hint" style={{ margin: 0 }}>
-                    Quando houver versão nova no GitHub, o app avisa e você
-                    pode atualizar sem baixar manualmente.
-                  </p>
-                  <button
-                    type="button"
-                    className="settings-update-btn"
-                    disabled={updateChecking}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={async () => {
-                      setUpdateChecking(true);
-                      try {
-                        await window.taknot.checkForUpdates();
-                      } catch (err) {
-                        console.error(err);
-                      } finally {
-                        setUpdateChecking(false);
-                      }
-                    }}
-                  >
-                    {updateChecking ? 'Verificando…' : 'Verificar atualizações'}
-                  </button>
-                </div>
-              </section>
-            </div>
-          </div>
-        </>
-      )}
 
       <QuickSearch
         open={quickSearchOpen}
