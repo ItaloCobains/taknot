@@ -1,4 +1,4 @@
-export function relativeTime(iso) {
+export function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
@@ -11,7 +11,7 @@ export function relativeTime(iso) {
   return `${months}mo ago`;
 }
 
-export function titleFromBody(body) {
+export function titleFromBody(body?: string | null) {
   const line = (body || '').split('\n').find((l) => l.trim());
   if (!line) return 'Untitled';
   return line.replace(/^#+\s*/, '').trim() || 'Untitled';
@@ -21,7 +21,14 @@ export function isMac() {
   return navigator.platform.toUpperCase().includes('MAC');
 }
 
-export function noteSnapshot(n) {
+export function noteSnapshot(n: {
+  id: string;
+  body: string;
+  notebookId?: string;
+  tags?: string[];
+  status?: string;
+  pinned?: boolean;
+}) {
   return JSON.stringify({
     id: n.id,
     title: titleFromBody(n.body),

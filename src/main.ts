@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { app, BrowserWindow, Menu, ipcMain, clipboard, shell, dialog } = require('electron');
 let liquidGlass = null;
 try {

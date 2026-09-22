@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { titleFromBody, noteSnapshot } from './lib/format.js';
+import { titleFromBody, noteSnapshot } from './lib/format';
 
 /**
  * Vault load/save/autosave + external change sync for the active note.

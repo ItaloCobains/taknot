@@ -1,5 +1,5 @@
 import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
-import { descendantIds } from './lib/notebooks.js';
+import { descendantIds } from './lib/notebooks';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 

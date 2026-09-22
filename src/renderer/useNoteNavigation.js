@@ -1,4 +1,4 @@
-import { noteSnapshot } from './lib/format.js';
+import { noteSnapshot } from './lib/format';
 
 /**
  * Note selection, history, pin, delete, and "new note" empty state.

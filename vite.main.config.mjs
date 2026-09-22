@@ -33,6 +33,7 @@ function copySpellDicts() {
 export default defineConfig({
   plugins: [copySpellDicts()],
   build: {
+    minify: 'oxc',
     rollupOptions: {
       external: ['electron-liquid-glass'],
     },

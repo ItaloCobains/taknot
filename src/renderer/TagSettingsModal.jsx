@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { TAG_SWATCHES } from './lib/prefs.js';
+import { TAG_SWATCHES } from './lib/prefs';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 

@@ -1,3 +1,4 @@
+// @ts-nocheck — shell still JS-shaped; tighten types file-by-file.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
@@ -5,9 +6,10 @@ import EditorPane from './EditorPane.jsx';
 import QuickSearch from './QuickSearch.jsx';
 import GraphView from './GraphView.jsx';
 import { useHotkeysState } from './HotkeySettings.jsx';
+import { formatHotkey } from './hotkeys.js';
 import { tagColorMap } from './TagBadge.jsx';
 import { renderMarkdown } from './markdown.js';
-import { flattenNotebooks } from './lib/notebooks.js';
+import { flattenNotebooks } from './lib/notebooks';
 import {
   TRANSLUCENCY_KEY,
   VIM_MODE_KEY,
@@ -16,8 +18,8 @@ import {
   readStoredTagsCollapsed,
   readStoredVimMode,
   applyTranslucency,
-} from './lib/prefs.js';
-import { noteSnapshot } from './lib/format.js';
+} from './lib/prefs';
+import { noteSnapshot } from './lib/format';
 import { useAppHotkeys } from './useAppHotkeys.js';
 import { useNoteVault } from './useNoteVault.js';
 import { useContextMenuDismiss } from './useContextMenuDismiss.js';
@@ -33,8 +35,6 @@ import NoteList from './NoteList.jsx';
 import NotebookContextMenus from './NotebookContextMenus.jsx';
 import TagContextMenu from './TagContextMenu.jsx';
 import TemplatePane from './TemplatePane.jsx';
-
-const ICON = { size: 15, strokeWidth: 1.75 };
 
 export default function App() {
   const [notebooks, setNotebooks] = useState([]);
@@ -364,6 +364,9 @@ export default function App() {
     refreshMeta,
     refreshNotes,
   });
+
+  const shortcut = formatHotkey(hotkeys.newNote);
+  const colorsByTag = useMemo(() => tagColorMap(tags), [tags]);
 
   return (
     <div

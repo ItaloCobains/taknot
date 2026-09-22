@@ -7,7 +7,7 @@ import {
   Search,
 } from 'lucide-react';
 import { formatHotkey } from './hotkeys.js';
-import { relativeTime } from './lib/format.js';
+import { relativeTime } from './lib/format';
 import StatusBadge from './StatusBadge.jsx';
 import TagBadge from './TagBadge.jsx';
 

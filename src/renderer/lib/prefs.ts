@@ -33,7 +33,7 @@ export function readStoredVimMode() {
 }
 
 /** Apply glass/pane CSS variables from a 0–100 translucency percent. */
-export function applyTranslucency(pct) {
+export function applyTranslucency(pct: number) {
   // 0% ≈ sólido legível, 100% ≈ glass extremo (quase só o blur nativo)
   const t = Math.min(100, Math.max(0, pct));
   const alpha = 0.88 - (t / 100) * 0.86; // 100% → 0.02

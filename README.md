@@ -141,3 +141,13 @@ src/
 ## License
 
 MIT © Italo Brandão
+
+## TypeScript & Oxc
+
+The app is migrating to TypeScript (`allowJs` is on so `.js`/`.jsx` still build).
+
+- `npm run typecheck` — `tsc --noEmit`
+- Production minify uses **Oxc** (`build.minify: 'oxc'` in the Vite configs; Vite 8 / Rolldown default). See https://oxc.rs/#feature-minifier
+
+Entry points: `src/main.ts`, `src/preload.ts`, `src/renderer.tsx`.
+
