@@ -2,17 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ListTodo,
   NotebookPen,
-  Network,
   PanelLeft,
   Pin,
   PenLine,
-  Plus,
   Search,
-  Settings,
-  Tag,
   X,
-  ChevronDown,
-  ChevronRight
 } from 'lucide-react';
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
@@ -22,7 +16,6 @@ import { useHotkeysState } from './HotkeySettings.jsx';
 import { eventMatchesHotkey, formatHotkey } from './hotkeys.js';
 import TagBadge, { tagColorMap } from './TagBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
-import { STATUSES } from './statuses.js';
 import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
 import { renderMarkdown } from './markdown.js';
 import { flattenNotebooks, descendantIds } from './lib/notebooks.js';
@@ -39,6 +32,7 @@ import { relativeTime, titleFromBody } from './lib/format.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import TagSettingsModal from './TagSettingsModal.jsx';
 import NotebookDetailModal from './NotebookDetailModal.jsx';
+import Sidebar from './Sidebar.jsx';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
@@ -97,35 +91,6 @@ export default function App() {
   historyIndexRef.current = historyIndex;
 
   const notebookTree = useMemo(() => flattenNotebooks(notebooks), [notebooks]);
-
-  const childIdsByParent = useMemo(() => {
-    const map = new Map();
-
-    for (const nb of notebooks) {
-      const p = nb.parentId || null;
-
-      if (!map.has(p)) map.set(p, [])
-
-      map.get(p).push(nb.id)
-    }
-
-    return map
-  }, [notebooks])
-
-  function hasChildren(id) {
-    return (childIdsByParent.get(id) || []).length > 0
-  }
-
-  function isHiddenByCollapse(nb) {
-    let parentId = nb.parentId || null
-
-    while (parentId) {
-      if (collapsedNotebook.has(parentId)) return true
-      parentId = notebooks.find(n => n.id === parentId)?.parentId || null
-    }
-
-    return false
-  }
 
   function toggleNotebookCollapse(id) {
     setCollapsedNotebook((prev) => {
@@ -426,8 +391,6 @@ export default function App() {
     }
   }
 
-  const notebookName = (id) =>
-    notebooks.find((n) => n.id === id)?.name || 'Notebook';
 
   function selectNote(id, { pushHistory = true } = {}) {
     const latest = noteRef.current;
@@ -1042,19 +1005,6 @@ export default function App() {
     setTagEdit(null);
   }
 
-  const isActive = (type, id) =>
-    filter.type === type && (id === undefined || filter.id === id);
-
-  const shortcut = formatHotkey(hotkeys.newNote);
-  const colorsByTag = useMemo(() => tagColorMap(tags), [tags]);
-  const filteredSidebarTags = useMemo(() => {
-    const q = tagFilterQuery.trim().toLowerCase();
-    if (!q) return tags;
-    return tags.filter((tag) =>
-      String(tag.name || tag).toLowerCase().includes(q),
-    );
-  }, [tags, tagFilterQuery]);
-
   return (
     <div
       className={`app ${settingsOpen ? 'settings-open' : ''} ${tagEdit || notebookDetail || quickSearchOpen ? 'modal-open' : ''
@@ -1259,241 +1209,48 @@ export default function App() {
         colorsByTag={colorsByTag}
       />
 
-      <aside className="sidebar">
-        <div className="sidebar-top">
-          <button
-            type="button"
-            className={`icon-btn ${settingsOpen ? 'active' : ''}`}
-            title="Settings"
-            onClick={() => setSettingsOpen((v) => !v)}
-          >
-            <Settings {...ICON} />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            title={`Toggle sidebar (${formatHotkey(hotkeys.toggleSidebar)})`}
-            onClick={() => setSidebarOpen((v) => !v)}
-          >
-            <PanelLeft {...ICON} />
-          </button>
-        </div>
-
-        <div className="sidebar-section sidebar-section-fixed">
-          <button
-            type="button"
-            className={`nav-item ${isActive('all') && !graphOpen ? 'active' : ''}`}
-            onClick={() => {
-              setGraphOpen(false);
-              setFilter({ type: 'all' });
-            }}
-          >
-            <NotebookPen {...ICON} />
-            All Notes
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${graphOpen ? 'active' : ''}`}
-            onClick={() => setGraphOpen(true)}
-          >
-            <Network {...ICON} />
-            Graph
-          </button>
-        </div>
-
-        <div className="sidebar-section sidebar-section-scroll">
-          <div className="section-head">
-            <h2>Notebooks</h2>
-            <button
-              type="button"
-              className="section-icon-btn"
-              title="New notebook"
-              onClick={() => {
-                setAddingUnderId(null);
-                setAddingNotebook(true);
-                setNotebookDraft('');
-              }}
-            >
-              <Plus {...ICON} />
-            </button>
-          </div>
-          <div className="sidebar-section-body">
-          {addingNotebook && (
-            <form
-              className="inline-create"
-              style={
-                addingUnderId
-                  ? {
-                    paddingLeft:
-                      12 +
-                      ((notebookTree.find((n) => n.id === addingUnderId)
-                        ?.depth ?? 0) +
-                        1) *
-                      12,
-                  }
-                  : undefined
-              }
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateNotebook();
-              }}
-            >
-              <input
-                autoFocus
-                value={notebookDraft}
-                placeholder={
-                  addingUnderId
-                    ? `Sub of ${notebookName(addingUnderId)}`
-                    : 'Notebook name'
-                }
-                onChange={(e) => setNotebookDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setAddingNotebook(false);
-                    setAddingUnderId(null);
-                    setNotebookDraft('');
-                  }
-                }}
-              />
-            </form>
-          )}
-          {notebookTree.filter((nb) => !isHiddenByCollapse(nb)).map(nb => renamingNotebookId === nb.id ? (
-            <form
-              key={nb.id}
-              className="inline-create"
-              style={{ paddingLeft: 12 + nb.depth * 12 }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                commitRenameNotebook();
-              }}
-            >
-              <input
-                autoFocus
-                value={renameDraft}
-                onChange={(e) => setRenameDraft(e.target.value)}
-                onBlur={commitRenameNotebook}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setRenamingNotebookId(null);
-                }}
-              />
-            </form>
-          ) : (
-            <button
-              key={nb.id}
-              type="button"
-              className={`nav-item ${isActive('notebook', nb.id) ? 'active' : ''}`}
-              style={{ paddingLeft: 12 + nb.depth * 12 }}
-              onClick={() => setFilter({ type: 'notebook', id: nb.id })}
-              onContextMenu={(e) => openNotebookMenu(e, nb)}
-            >
-              {hasChildren(nb.id) ? (
-                <span
-                  className='nv-chevron'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleNotebookCollapse(nb.id)
-                  }}
-                >
-                  {collapsedNotebook.has(nb.id) ? (
-                    <ChevronRight size={14} strokeWidth={2} />
-                  ) : (
-
-                    <ChevronDown size={14} strokeWidth={2} />
-                  )}
-                </span>
-              ) : (
-                <span className='nb-chevron-spacer' />
-              )}
-              <NotebookIcon name={nb.icon} {...ICON} />
-              {nb.name}
-            </button>
-          ),
-          )}
-          </div>
-        </div>
-
-        <div className="sidebar-section sidebar-section-fixed">
-          <h2>Status</h2>
-          {STATUSES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`nav-item ${isActive('status', s.id) ? 'active' : ''}`}
-              onClick={() => setFilter({ type: 'status', id: s.id })}
-            >
-              <s.Icon {...ICON} className={`status-icon ${s.className}`} />
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        <div
-          className={`sidebar-section sidebar-section-scroll ${tagsCollapsed ? 'is-collapsed' : ''}`}
-        >
-          <button
-            type="button"
-            className="section-head section-head-toggle"
-            onClick={() => setTagsCollapsed((v) => !v)}
-            title={tagsCollapsed ? 'Expandir tags' : 'Recolher tags'}
-          >
-            <span className="section-head-left">
-              {tagsCollapsed ? (
-                <ChevronRight size={14} strokeWidth={2} />
-              ) : (
-                <ChevronDown size={14} strokeWidth={2} />
-              )}
-              <h2>Tags</h2>
-              {tags.length > 0 && (
-                <span className="section-count">{tags.length}</span>
-              )}
-            </span>
-            <Tag {...ICON} className="section-icon" />
-          </button>
-          {!tagsCollapsed && (
-            <div className="sidebar-section-body">
-              {tags.length > 6 && (
-                <div className="tag-filter-wrap">
-                  <Search size={13} strokeWidth={2} className="tag-filter-icon" />
-                  <input
-                    type="search"
-                    className="tag-filter-input"
-                    placeholder="Filtrar tags…"
-                    value={tagFilterQuery}
-                    onChange={(e) => setTagFilterQuery(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                </div>
-              )}
-              {tags.length === 0 && <p className="muted">—</p>}
-              {tags.length > 0 && filteredSidebarTags.length === 0 && (
-                <p className="muted tag-filter-empty">Nenhuma tag</p>
-              )}
-              {filteredSidebarTags.map((tag) => (
-                <button
-                  key={tag.id || tag.name || tag}
-                  type="button"
-                  className={`nav-item ${isActive('tag', tag.name || tag) ? 'active' : ''}`}
-                  onClick={() => setFilter({ type: 'tag', id: tag.name || tag })}
-                  onContextMenu={(e) =>
-                    tag.id ? openTagMenu(e, tag) : undefined
-                  }
-                >
-                  <span
-                    className="tag-dot"
-                    style={
-                      tag.color
-                        ? { background: tag.color, borderColor: tag.color }
-                        : undefined
-                    }
-                  />
-                  {tag.name || tag}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
+      <Sidebar
+        settingsOpen={settingsOpen}
+        onToggleSettings={() => setSettingsOpen((v) => !v)}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        hotkeys={hotkeys}
+        graphOpen={graphOpen}
+        onOpenGraph={() => setGraphOpen(true)}
+        onCloseGraph={() => setGraphOpen(false)}
+        filter={filter}
+        onFilterChange={setFilter}
+        notebookTree={notebookTree}
+        notebooks={notebooks}
+        collapsedNotebook={collapsedNotebook}
+        onToggleNotebookCollapse={toggleNotebookCollapse}
+        addingNotebook={addingNotebook}
+        addingUnderId={addingUnderId}
+        notebookDraft={notebookDraft}
+        onNotebookDraftChange={setNotebookDraft}
+        onStartAddNotebook={() => {
+          setAddingUnderId(null);
+          setAddingNotebook(true);
+          setNotebookDraft('');
+        }}
+        onCancelAddNotebook={() => {
+          setAddingNotebook(false);
+          setAddingUnderId(null);
+          setNotebookDraft('');
+        }}
+        onCreateNotebook={handleCreateNotebook}
+        renamingNotebookId={renamingNotebookId}
+        renameDraft={renameDraft}
+        onRenameDraftChange={setRenameDraft}
+        onCommitRename={commitRenameNotebook}
+        onCancelRename={() => setRenamingNotebookId(null)}
+        onOpenNotebookMenu={openNotebookMenu}
+        tags={tags}
+        tagsCollapsed={tagsCollapsed}
+        onToggleTagsCollapsed={() => setTagsCollapsed((v) => !v)}
+        tagFilterQuery={tagFilterQuery}
+        onTagFilterQueryChange={setTagFilterQuery}
+        onOpenTagMenu={openTagMenu}
+      />
 
       {graphOpen && (
         <GraphView
