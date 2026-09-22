@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  PenLine,
-  Search,
-  X,
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
 import EditorPane from './EditorPane.jsx';
 import QuickSearch from './QuickSearch.jsx';
@@ -11,9 +7,8 @@ import GraphView from './GraphView.jsx';
 import { useHotkeysState } from './HotkeySettings.jsx';
 import { eventMatchesHotkey, formatHotkey } from './hotkeys.js';
 import { tagColorMap } from './TagBadge.jsx';
-import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons.jsx';
 import { renderMarkdown } from './markdown.js';
-import { flattenNotebooks, descendantIds } from './lib/notebooks.js';
+import { flattenNotebooks } from './lib/notebooks.js';
 import {
   TRANSLUCENCY_KEY,
   VIM_MODE_KEY,
@@ -29,6 +24,9 @@ import TagSettingsModal from './TagSettingsModal.jsx';
 import NotebookDetailModal from './NotebookDetailModal.jsx';
 import Sidebar from './Sidebar.jsx';
 import NoteList from './NoteList.jsx';
+import NotebookContextMenus from './NotebookContextMenus.jsx';
+import TagContextMenu from './TagContextMenu.jsx';
+import TemplatePane from './TemplatePane.jsx';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
@@ -1006,166 +1004,30 @@ export default function App() {
         } ${nbMenu || tagMenu || iconPicker || movePicker ? 'menu-open' : ''
         } ${focusMode ? 'focus-mode' : ''} ${sidebarOpen ? '' : 'sidebar-collapsed'} ${graphOpen ? 'graph-open' : ''}`}
     >
-      {nbMenu && (
-        <div
-          className="context-menu"
-          style={{ top: nbMenu.y, left: nbMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button type="button" onClick={showNotebookDetail}>
-            Show Detail…
-          </button>
-          <button type="button" onClick={copyNotebookId}>
-            Copy Notebook ID
-          </button>
-          <div className="menu-sep" />
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              startNewSubNotebook();
-            }}
-          >
-            New Sub Notebook…
-          </button>
-          <button type="button" onClick={startRenameNotebook}>
-            Rename Notebook…
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openIconPicker();
-            }}
-          >
-            Change Notebook Icon…
-          </button>
-          <button
-            type="button"
-            disabled={nbMenu.id === 'nb_inbox'}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openMoveNotebook();
-            }}
-          >
-            Move Notebook…
-          </button>
-          <button
-            type="button"
-            className="danger"
-            disabled={nbMenu.id === 'nb_inbox'}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (nbMenu.id === 'nb_inbox') return;
-              handleDeleteNotebook(nbMenu.id);
-            }}
-          >
-            Delete Notebook…
-          </button>
-        </div>
-      )}
+      <NotebookContextMenus
+        nbMenu={nbMenu}
+        iconPicker={iconPicker}
+        movePicker={movePicker}
+        notebookTree={notebookTree}
+        notebooks={notebooks}
+        onShowDetail={showNotebookDetail}
+        onCopyId={copyNotebookId}
+        onNewSub={startNewSubNotebook}
+        onRename={startRenameNotebook}
+        onOpenIconPicker={openIconPicker}
+        onOpenMove={openMoveNotebook}
+        onDelete={handleDeleteNotebook}
+        onPickIcon={pickNotebookIcon}
+        onPickMoveParent={pickMoveParent}
+      />
 
-      {iconPicker && (
-        <div
-          className="context-menu icon-picker"
-          style={{ top: iconPicker.y, left: iconPicker.x }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="icon-picker-grid">
-            {NOTEBOOK_ICON_NAMES.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={iconPicker.icon === name ? 'active' : ''}
-                title={name}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  pickNotebookIcon(name);
-                }}
-              >
-                <NotebookIcon name={name} {...ICON} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {movePicker && (
-        <div
-          className="context-menu"
-          style={{ top: movePicker.y, left: movePicker.x }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              pickMoveParent(null);
-            }}
-          >
-            Top level
-          </button>
-          <div className="menu-sep" />
-          {notebookTree
-            .filter((nb) => {
-              if (nb.id === movePicker.id) return false;
-              if (descendantIds(notebooks, movePicker.id).has(nb.id))
-                return false;
-              return true;
-            })
-            .map((nb) => (
-              <button
-                key={nb.id}
-                type="button"
-                style={{ paddingLeft: 12 + nb.depth * 12 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  pickMoveParent(nb.id);
-                }}
-              >
-                <NotebookIcon name={nb.icon} {...ICON} />
-                {nb.name}
-              </button>
-            ))}
-        </div>
-      )}
-
-      {tagMenu && (
-        <div
-          className="context-menu"
-          style={{ top: tagMenu.y, left: tagMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button type="button" onClick={openTagSettings}>
-            Tag Settings…
-          </button>
-          <button type="button" onClick={filterByTag}>
-            Filter by Tag
-          </button>
-          <button type="button" onClick={copyTagId}>
-            Copy Tag ID
-          </button>
-          <div className="menu-sep" />
-          <button type="button" className="danger" onClick={handleDeleteTag}>
-            Delete Tag…
-          </button>
-        </div>
-      )}
+      <TagContextMenu
+        tagMenu={tagMenu}
+        onSettings={openTagSettings}
+        onFilter={filterByTag}
+        onCopyId={copyTagId}
+        onDelete={handleDeleteTag}
+      />
 
       <TagSettingsModal
         tagEdit={tagEdit}
@@ -1275,155 +1137,22 @@ export default function App() {
 
       <section className="editor-pane">
         {!note ? (
-          <>
-            <header className="pane-header template-header">
-              <button
-                type="button"
-                className="create-note-title-btn"
-                onClick={() => createFromTemplate()}
-              >
-                <PenLine {...ICON} />
-                <span>Create a new note</span>
-              </button>
-            </header>
-            <div className="template-pane">
-              <div className="template-list">
-                <div className="search-wrap template-search">
-                  <Search {...ICON} className="search-icon" />
-                  <input
-                    type="search"
-                    placeholder="Search templates…"
-                    value={templateQuery}
-                    onChange={(e) => setTemplateQuery(e.target.value)}
-                  />
-                </div>
-                <div className="template-groups">
-                  {templateGroups.map(([category, items]) => (
-                    <div key={category} className="template-group">
-                      <h3>{category}</h3>
-                      {items.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          className={`template-item ${selectedTemplateId === t.id ? 'selected' : ''
-                            }`}
-                          onClick={() => setSelectedTemplateId(t.id)}
-                          onDoubleClick={() => createFromTemplate(t)}
-                        >
-                          {t.name}
-                          {!t.builtin && (
-                            <span className='template-item-actions'>
-                              <button
-                                type='button'
-                                className='template-mini-btn'
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  openEditTemplate(t)
-                                }}>
-                                Edit
-                              </button>
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-                <div className="template-actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() => createFromTemplate()}
-                  >
-                    Create note
-                  </button>
-                  <button
-                    type='button'
-                    className='btn'
-                    onClick={() => openNewTemplate()}
-                  >
-                    New Template
-                  </button>
-                </div>
-              </div>
-              <div className="template-preview">
-                {templateEditor ? (
-                  <div className="template-editor">
-                    <div className="settings-field">
-                      <label>Name</label>
-                      <input
-                        className="settings-text"
-                        value={templateEditor.name}
-                        onChange={(e) =>
-                          setTemplateEditor((s) => ({
-                            ...s,
-                            name: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="settings-field" style={{ marginTop: 10 }}>
-                      <label>Category</label>
-                      <input
-                        className="settings-text"
-                        value={templateEditor.category}
-                        onChange={(e) =>
-                          setTemplateEditor((s) => ({
-                            ...s,
-                            category: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="settings-field" style={{ marginTop: 10 }}>
-                      <label>Body (markdown)</label>
-                      <textarea
-                        className="settings-text template-body-input"
-                        rows={16}
-                        value={templateEditor.body}
-                        onChange={(e) =>
-                          setTemplateEditor((s) => ({
-                            ...s,
-                            body: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="template-editor-actions">
-                      {templateEditor.id && (
-                        <button
-                          type="button"
-                          className="btn danger"
-                          onClick={() => removeTemplate(templateEditor.id)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setTemplateEditor(null)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className="btn primary"
-                        onClick={saveTemplateEditor}
-                      >
-                        Save template
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="template-preview-card markdown"
-                    dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                  />
-                )}
-              </div>
-            </div>
-          </>
+          <TemplatePane
+            templateQuery={templateQuery}
+            onTemplateQueryChange={setTemplateQuery}
+            templateGroups={templateGroups}
+            selectedTemplateId={selectedTemplateId}
+            onSelectTemplate={setSelectedTemplateId}
+            onCreateFromTemplate={createFromTemplate}
+            onOpenEditTemplate={openEditTemplate}
+            onOpenNewTemplate={openNewTemplate}
+            templateEditor={templateEditor}
+            onTemplateEditorChange={setTemplateEditor}
+            onCancelTemplateEditor={() => setTemplateEditor(null)}
+            onSaveTemplateEditor={saveTemplateEditor}
+            onRemoveTemplate={removeTemplate}
+            templatePreviewHtml={templatePreviewHtml}
+          />
         ) : (
           <EditorPane
             note={note}
