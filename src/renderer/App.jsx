@@ -20,6 +20,9 @@ import {
 import { noteSnapshot } from './lib/format.js';
 import { useAppHotkeys } from './useAppHotkeys.js';
 import { useNoteVault } from './useNoteVault.js';
+import { useContextMenuDismiss } from './useContextMenuDismiss.js';
+import { useNotebookActions } from './useNotebookActions.js';
+import { useTagActions } from './useTagActions.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import TagSettingsModal from './TagSettingsModal.jsx';
 import NotebookDetailModal from './NotebookDetailModal.jsx';
@@ -409,266 +412,78 @@ export default function App() {
     await refreshMeta();
   }
 
-  useEffect(() => {
-    if (!nbMenu && !tagMenu && !iconPicker && !movePicker) return undefined;
-    function close(e) {
-      if (e.target?.closest?.('.context-menu')) return;
-      setNbMenu(null);
-      setTagMenu(null);
-      setIconPicker(null);
-      setMovePicker(null);
-    }
-    const t = setTimeout(() => {
-      window.addEventListener('mousedown', close);
-      window.addEventListener('scroll', close, true);
-    }, 0);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-    };
-  }, [nbMenu, tagMenu, iconPicker, movePicker]);
 
-  async function handleCreateNotebook() {
-    const name = notebookDraft.trim();
-    if (!name) return;
-    try {
-      const nb = await window.taknot.createNotebook(name, addingUnderId);
-      setNotebookDraft('');
-      setAddingNotebook(false);
-      setAddingUnderId(null);
-      await refreshMeta();
-      setFilter({ type: 'notebook', id: nb.id });
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  useContextMenuDismiss({
+    nbMenu,
+    tagMenu,
+    iconPicker,
+    movePicker,
+    setNbMenu,
+    setTagMenu,
+    setIconPicker,
+    setMovePicker,
+  });
 
-  function openNotebookMenu(e, nb) {
-    e.preventDefault();
-    e.stopPropagation();
-    setTagMenu(null);
-    setIconPicker(null);
-    setMovePicker(null);
-    setNbMenu({
-      id: nb.id,
-      name: nb.name,
-      icon: nb.icon || 'Book',
-      x: e.clientX,
-      y: e.clientY,
-    });
-  }
+  const {
+    handleCreateNotebook,
+    openNotebookMenu,
+    copyNotebookId,
+    showNotebookDetail,
+    startRenameNotebook,
+    startNewSubNotebook,
+    openIconPicker,
+    openMoveNotebook,
+    pickNotebookIcon,
+    pickMoveParent,
+    commitRenameNotebook,
+    handleDeleteNotebook,
+  } = useNotebookActions({
+    notebookDraft,
+    addingUnderId,
+    nbMenu,
+    iconPicker,
+    movePicker,
+    renamingNotebookId,
+    renameDraft,
+    filter,
+    setNotebookDraft,
+    setAddingNotebook,
+    setAddingUnderId,
+    setFilter,
+    setNbMenu,
+    setTagMenu,
+    setIconPicker,
+    setMovePicker,
+    setNotebookDetail,
+    setRenamingNotebookId,
+    setRenameDraft,
+    setNotebooks,
+    refreshMeta,
+    refreshNotes,
+  });
 
-  async function copyNotebookId() {
-    if (!nbMenu) return;
-    const id = nbMenu.id;
-    setNbMenu(null);
-    try {
-      await window.taknot.writeClipboard(id);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function showNotebookDetail() {
-    if (!nbMenu) return;
-    const notes = await window.taknot.listNotes({ notebookId: nbMenu.id });
-    setNotebookDetail({
-      id: nbMenu.id,
-      name: nbMenu.name,
-      noteCount: notes.length,
-    });
-    setNbMenu(null);
-  }
-
-  function startRenameNotebook() {
-    if (!nbMenu) return;
-    setRenamingNotebookId(nbMenu.id);
-    setRenameDraft(nbMenu.name);
-    setNbMenu(null);
-  }
-
-  function startNewSubNotebook() {
-    if (!nbMenu) return;
-    setAddingUnderId(nbMenu.id);
-    setAddingNotebook(true);
-    setNotebookDraft('');
-    setNbMenu(null);
-  }
-
-  function openIconPicker() {
-    if (!nbMenu) return;
-    setIconPicker({
-      id: nbMenu.id,
-      icon: nbMenu.icon || 'Book',
-      x: nbMenu.x,
-      y: nbMenu.y,
-    });
-    setNbMenu(null);
-  }
-
-  function openMoveNotebook() {
-    if (!nbMenu || nbMenu.id === 'nb_inbox') {
-      setNbMenu(null);
-      return;
-    }
-    setMovePicker({ id: nbMenu.id, x: nbMenu.x, y: nbMenu.y });
-    setNbMenu(null);
-  }
-
-  async function pickNotebookIcon(icon) {
-    if (!iconPicker) return;
-    const { id } = iconPicker;
-    setIconPicker(null);
-    try {
-      await window.taknot.setNotebookIcon(id, icon);
-      await refreshMeta();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function pickMoveParent(parentId) {
-    if (!movePicker) return;
-    const { id } = movePicker;
-    setMovePicker(null);
-    try {
-      await window.taknot.moveNotebook(id, parentId);
-      await refreshMeta();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function commitRenameNotebook() {
-    if (!renamingNotebookId) return;
-    const name = renameDraft.trim();
-    if (!name) {
-      setRenamingNotebookId(null);
-      return;
-    }
-    try {
-      await window.taknot.renameNotebook(renamingNotebookId, name);
-      await refreshMeta();
-    } catch (err) {
-      console.error(err);
-    }
-    setRenamingNotebookId(null);
-  }
-
-  async function handleDeleteNotebook(id) {
-    if (!id || id === 'nb_inbox') {
-      setNbMenu(null);
-      return;
-    }
-    setNbMenu(null);
-    try {
-      await window.taknot.deleteNotebook(id);
-      if (filter.type === 'notebook' && filter.id === id) {
-        setFilter({ type: 'all' });
-      }
-      setNotebooks((prev) => prev.filter((n) => n.id !== id));
-      await refreshMeta();
-      await refreshNotes();
-    } catch (err) {
-      console.error('deleteNotebook failed', id, err);
-    }
-  }
-
-  function openTagMenu(e, tag) {
-    e.preventDefault();
-    e.stopPropagation();
-    setNbMenu(null);
-    setIconPicker(null);
-    setMovePicker(null);
-    setTagMenu({
-      id: tag.id,
-      name: tag.name,
-      color: tag.color || '#8b93a7',
-      x: e.clientX,
-      y: e.clientY,
-    });
-  }
-
-  function openTagSettings() {
-    if (!tagMenu) return;
-    setTagEdit({
-      id: tagMenu.id,
-      name: tagMenu.name,
-      color: (tagMenu.color || '#8b93a7').toLowerCase(),
-    });
-    setTagMenu(null);
-  }
-
-  async function copyTagId() {
-    if (!tagMenu) return;
-    const id = tagMenu.id;
-    setTagMenu(null);
-    try {
-      await window.taknot.writeClipboard(id);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function filterByTag() {
-    if (!tagMenu) return;
-    setFilter({ type: 'tag', id: tagMenu.name });
-    setTagMenu(null);
-  }
-
-  async function handleDeleteTag() {
-    if (!tagMenu) return;
-    const { id, name } = tagMenu;
-    setTagMenu(null);
-    try {
-      await window.taknot.deleteTag(id);
-      if (filter.type === 'tag' && filter.id === name) {
-        setFilter({ type: 'all' });
-      }
-      await refreshMeta();
-      await refreshNotes();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function commitTagEdit() {
-    if (!tagEdit) return;
-    const name = tagEdit.name.trim().toLowerCase();
-    if (!name) {
-      setTagEdit(null);
-      return;
-    }
-    const oldName = tags.find((t) => t.id === tagEdit.id)?.name;
-    try {
-      const saved = await window.taknot.saveTag({
-        id: tagEdit.id,
-        name,
-        color: tagEdit.color,
-      });
-      if (filter.type === 'tag' && filter.id === oldName) {
-        setFilter({ type: 'tag', id: saved.name });
-      }
-      if (oldName && oldName !== saved.name) {
-        setNote((prev) =>
-          prev
-            ? {
-              ...prev,
-              tags: (prev.tags || []).map((t) =>
-                t === oldName ? saved.name : t,
-              ),
-            }
-            : prev,
-        );
-      }
-      await refreshMeta();
-      await refreshNotes();
-    } catch (err) {
-      console.error(err);
-    }
-    setTagEdit(null);
-  }
+  const {
+    openTagMenu,
+    openTagSettings,
+    copyTagId,
+    filterByTag,
+    handleDeleteTag,
+    commitTagEdit,
+  } = useTagActions({
+    tagMenu,
+    tagEdit,
+    tags,
+    filter,
+    setNbMenu,
+    setIconPicker,
+    setMovePicker,
+    setTagMenu,
+    setTagEdit,
+    setFilter,
+    setNote,
+    refreshMeta,
+    refreshNotes,
+  });
 
   return (
     <div
