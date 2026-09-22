@@ -1,0 +1,912 @@
+// @ts-nocheck — gradual typing after JS→TS rename.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Compartment, EditorState } from '@codemirror/state';
+import { vim, getCM } from '@replit/codemirror-vim';
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  drawSelection,
+  placeholder,
+  Decoration,
+  MatchDecorator,
+  ViewPlugin,
+} from '@codemirror/view';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from '@codemirror/commands';
+import { markdown } from '@codemirror/lang-markdown';
+import {
+  syntaxHighlighting,
+  defaultHighlightStyle,
+  HighlightStyle,
+} from '@codemirror/language';
+import { tags } from '@lezer/highlight';
+import { eventMatchesHotkey, loadHotkeys } from './hotkeys';
+import {
+  spellcheckExtension,
+  wordAt,
+  addCustomWord,
+  setMisspelledEffect,
+  misspelledField,
+} from './spellcheckExt';
+import {
+  detectSlash,
+  filterSlashCommands,
+} from './slashCommands';
+import {
+  detectLatex,
+  filterLatexCommands,
+} from './latexCommands';
+
+const wikiMatcher = new MatchDecorator({
+  regexp: /\[\[[^\]\n]+?\]\]/g,
+  decoration: Decoration.mark({ class: 'cm-wiki-link' }),
+});
+
+const wikiLinkPlugin = ViewPlugin.fromClass(
+  class {
+    decorations;
+    constructor(view) {
+      this.decorations = wikiMatcher.createDeco(view);
+    }
+    update(update) {
+      this.decorations = wikiMatcher.updateDeco(update, this.decorations);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+function detectWiki(body, caret) {
+  const before = body.slice(0, caret);
+  const open = before.lastIndexOf('[[');
+  if (open < 0) return null;
+  const afterOpen = before.slice(open + 2);
+  if (afterOpen.includes(']]') || afterOpen.includes('\n')) return null;
+  return { start: open, end: caret, query: afterOpen };
+}
+
+function formatVimMode(mode) {
+  const m = String(mode || 'normal').toLowerCase();
+  if (m.includes('insert')) return { key: 'insert', label: 'INSERT' };
+  if (m.includes('replace')) return { key: 'replace', label: 'REPLACE' };
+  if (m.includes('visual')) return { key: 'visual', label: 'VISUAL' };
+  if (m.includes('command')) return { key: 'command', label: 'COMMAND' };
+  return { key: 'normal', label: 'NORMAL' };
+}
+
+function readVimCursor(view) {
+  const head = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(head);
+  const col = head - line.from + 1;
+  const total = view.state.doc.lines || 1;
+  const pct = Math.min(100, Math.round(((line.number - 1) / Math.max(1, total - 1)) * 100));
+  return { line: line.number, col, pct };
+}
+
+
+/** Wrap selection (or insert markers) for markdown emphasis. */
+function wrapMarkdown(view, left, right = left) {
+  const { state } = view;
+  const sel = state.selection.main;
+  const selected = state.sliceDoc(sel.from, sel.to);
+  const from = sel.from;
+  const to = sel.to;
+  // Unwrap if already wrapped
+  if (
+    selected.startsWith(left) &&
+    selected.endsWith(right) &&
+    selected.length >= left.length + right.length
+  ) {
+    const inner = selected.slice(left.length, selected.length - right.length);
+    view.dispatch({
+      changes: { from, to, insert: inner },
+      selection: { anchor: from, head: from + inner.length },
+    });
+    return true;
+  }
+  const before = state.sliceDoc(Math.max(0, from - left.length), from);
+  const after = state.sliceDoc(to, Math.min(state.doc.length, to + right.length));
+  if (before === left && after === right) {
+    view.dispatch({
+      changes: [
+        { from: from - left.length, to: from, insert: '' },
+        { from: to, to: to + right.length, insert: '' },
+      ],
+      selection: { anchor: from - left.length, head: to - left.length },
+    });
+    return true;
+  }
+  const insert = left + selected + right;
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: selected
+      ? { anchor: from + left.length, head: from + left.length + selected.length }
+      : { anchor: from + left.length },
+  });
+  return true;
+}
+
+/** Vim Ctrl-d / Ctrl-u: scroll ~half a page and move the cursor with it. */
+function scrollVimHalfPage(view, dir) {
+  const box = view.scrollDOM;
+  const half = Math.max(24, Math.round(box.clientHeight / 2));
+  const maxScroll = Math.max(0, box.scrollHeight - box.clientHeight);
+  box.scrollTop = Math.max(0, Math.min(maxScroll, box.scrollTop + dir * half));
+
+  const head = view.state.selection.main.head;
+  const cur = view.state.doc.lineAt(head);
+  const block = view.lineBlockAt(head);
+  const lineHeight = block.height || view.defaultLineHeight || 18;
+  const lineDelta = Math.max(1, Math.round(half / lineHeight)) * dir;
+  const nextNum = Math.max(
+    1,
+    Math.min(view.state.doc.lines, cur.number + lineDelta),
+  );
+  const next = view.state.doc.line(nextNum);
+  const col = Math.min(head - cur.from, next.length);
+  const pos = next.from + col;
+  view.dispatch({
+    selection: { anchor: pos },
+    effects: EditorView.scrollIntoView(pos, { y: 'nearest' }),
+  });
+  return true;
+}
+
+const coolHighlight = HighlightStyle.define([
+  { tag: tags.heading1, color: '#ff7eb6', fontWeight: '700', fontSize: '1.75em' },
+  { tag: tags.heading2, color: '#ff7eb6', fontWeight: '700', fontSize: '1.4em' },
+  { tag: tags.heading3, color: '#ff9ecd', fontWeight: '700', fontSize: '1.2em' },
+  { tag: tags.heading4, color: '#ff9ecd', fontWeight: '700', fontSize: '1.1em' },
+  { tag: tags.heading, color: '#ff7eb6', fontWeight: '700', fontSize: '1.2em' },
+  { tag: tags.strong, color: '#c4b5fd', fontWeight: '700' },
+  { tag: tags.emphasis, color: '#7dd3fc', fontStyle: 'italic' },
+  { tag: tags.strikethrough, color: '#94a3b8', textDecoration: 'line-through' },
+  { tag: tags.link, color: '#38bdf8' },
+  { tag: tags.url, color: '#38bdf8' },
+  { tag: tags.monospace, color: '#5eead4' },
+  { tag: tags.processingInstruction, color: '#818cf8' },
+  { tag: tags.meta, color: '#64748b' },
+  { tag: tags.quote, color: '#94a3b8', fontStyle: 'italic' },
+  { tag: tags.list, color: '#818cf8' },
+  { tag: tags.contentSeparator, color: '#475569' },
+]);
+
+const editorTheme = EditorView.theme(
+  {
+    '&': {
+      height: '100%',
+      fontSize: '14px',
+      backgroundColor: 'transparent',
+    },
+    '.cm-scroller': {
+      fontFamily:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+      lineHeight: '1.6',
+      overflow: 'auto',
+    },
+    '.cm-content': {
+      caretColor: '#e8f0ff',
+      padding: '16px 8px',
+      minHeight: '100%',
+      color: '#d7deea',
+    },
+    '.cm-gutters': {
+      backgroundColor: 'transparent',
+      border: 'none',
+      color: '#4b5563',
+      minWidth: '32px',
+    },
+    '.cm-activeLineGutter': {
+      backgroundColor: 'transparent',
+      color: '#9ca3af',
+    },
+    '.cm-activeLine': {
+      backgroundColor: 'rgba(90, 140, 255, 0.06)',
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+      backgroundColor: 'rgba(90, 140, 255, 0.4) !important',
+    },
+    '.cm-cursor, .cm-dropCursor': {
+      borderLeftColor: '#e8f0ff',
+    },
+    '.cm-wiki-link': {
+      color: '#5eead4',
+      textDecoration: 'underline',
+      textDecorationStyle: 'dashed',
+      textUnderlineOffset: '3px',
+    },
+  },
+  { dark: true },
+);
+
+export default function MdCodeEditor({
+  noteId,
+  value,
+  onChange,
+  onScrollRatio,
+  apiRef,
+  vimMode = false,
+  noteTitles = [],
+}) {
+  const hostRef = useRef(null);
+  const viewRef = useRef(null);
+  const vimCompartmentRef = useRef(null);
+  const slashMenuRef = useRef(null);
+  const wikiMenuRef = useRef(null);
+  const latexMenuRef = useRef(null);
+  const [slash, setSlash] = useState(null);
+  const [spellMenu, setSpellMenu] = useState(null);
+
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [wiki, setWiki] = useState(null);
+  const [wikiIndex, setWikiIndex] = useState(0);
+  const [latex, setLatex] = useState(null);
+  const [latexIndex, setLatexIndex] = useState(0);
+  const [vimStatus, setVimStatus] = useState(null);
+  const [vimCursor, setVimCursor] = useState({ line: 1, col: 1, pct: 0 });
+  const [vimClock, setVimClock] = useState(() => {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  });
+
+  const slashList = useMemo(
+    () => (slash ? filterSlashCommands(slash.query) : []),
+    [slash],
+  );
+  const wikiList = useMemo(() => {
+    if (!wiki) return [];
+    const q = wiki.query.trim().toLowerCase();
+    const titles = [...new Set(noteTitles.filter(Boolean))];
+    const filtered = q
+      ? titles.filter((title) => title.toLowerCase().includes(q))
+      : titles;
+    return filtered.slice(0, 12);
+  }, [wiki, noteTitles]);
+  const latexList = useMemo(
+    () => (latex ? filterLatexCommands(latex.query) : []),
+    [latex],
+  );
+
+  const vimModeRef = useRef(vimMode);
+  vimModeRef.current = vimMode;
+  const onChangeRef = useRef(onChange);
+  const onScrollRef = useRef(onScrollRatio);
+  const slashListRef = useRef(slashList);
+  const slashIndexRef = useRef(slashIndex);
+  const slashRef = useRef(slash);
+  const wikiListRef = useRef(wikiList);
+  const wikiIndexRef = useRef(wikiIndex);
+  const wikiRef = useRef(wiki);
+  const latexListRef = useRef(latexList);
+  const latexIndexRef = useRef(latexIndex);
+  const latexRef = useRef(latex);
+  const noteTitlesRef = useRef(noteTitles);
+  onChangeRef.current = onChange;
+  onScrollRef.current = onScrollRatio;
+  slashListRef.current = slashList;
+  slashIndexRef.current = slashIndex;
+  slashRef.current = slash;
+  wikiListRef.current = wikiList;
+  wikiIndexRef.current = wikiIndex;
+  wikiRef.current = wiki;
+  latexListRef.current = latexList;
+  latexIndexRef.current = latexIndex;
+  latexRef.current = latex;
+  noteTitlesRef.current = noteTitles;
+
+  useEffect(() => {
+    if (!slash || !slashMenuRef.current) return;
+    const active = slashMenuRef.current.querySelector('.slash-item.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [slashIndex, slash, slashList.length]);
+
+  useEffect(() => {
+    if (!wiki || !wikiMenuRef.current) return;
+    const active = wikiMenuRef.current.querySelector('.wiki-item.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [wikiIndex, wiki, wikiList.length]);
+
+  useEffect(() => {
+    if (!latex || !latexMenuRef.current) return;
+    const active = latexMenuRef.current.querySelector('.latex-item.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [latexIndex, latex, latexList.length]);
+
+  function applySlashCommand(cmd) {
+    const view = viewRef.current;
+    const s = slashRef.current;
+    if (!view || !s || !cmd) return;
+    const insert = cmd.insert;
+    const cursor = s.start + (cmd.cursor ?? insert.length);
+    view.dispatch({
+      changes: { from: s.start, to: s.end, insert },
+      selection: { anchor: cursor },
+    });
+    setSlash(null);
+    setWiki(null);
+    setLatex(null);
+    view.focus();
+  }
+
+  function applyWikiTitle(title) {
+    const view = viewRef.current;
+    const w = wikiRef.current;
+    if (!view || !w || !title) return;
+    const insert = `[[${title}]]`;
+    view.dispatch({
+      changes: { from: w.start, to: w.end, insert },
+      selection: { anchor: w.start + insert.length },
+    });
+    setWiki(null);
+    setLatex(null);
+    view.focus();
+  }
+
+  function applyLatexCommand(cmd) {
+    const view = viewRef.current;
+    const hit = latexRef.current;
+    if (!view || !hit || !cmd) return;
+    const insert = cmd.insert;
+    const cursor = hit.start + (cmd.cursor ?? insert.length);
+    view.dispatch({
+      changes: { from: hit.start, to: hit.end, insert },
+      selection: { anchor: cursor },
+    });
+    setLatex(null);
+    view.focus();
+  }
+
+  useEffect(() => {
+    if (!hostRef.current) return undefined;
+
+    const placeMenu = (view, pos, count) => {
+      const coords = view.coordsAtPos(pos);
+      const menuW = 260;
+      const menuH = Math.min(280, Math.max(48, count * 36 + 12));
+      const gap = 6;
+      if (!coords) return { top: 8, left: 16, maxHeight: menuH };
+      const spaceBelow = window.innerHeight - coords.bottom - 8;
+      const openAbove = spaceBelow < menuH && coords.top > menuH + 8;
+      const top = openAbove
+        ? Math.max(8, coords.top - menuH - gap)
+        : Math.min(coords.bottom + gap, window.innerHeight - menuH - 8);
+      const left = Math.max(
+        8,
+        Math.min(coords.left, window.innerWidth - menuW - 8),
+      );
+      return { top, left, maxHeight: menuH };
+    };
+
+    const updateMenus = (view) => {
+      const caret = view.state.selection.main.head;
+      const body = view.state.doc.toString();
+
+      const wikiHit = detectWiki(body, caret);
+      if (wikiHit) {
+        setSlash(null);
+        setLatex(null);
+        const titles = noteTitlesRef.current || [];
+        const q = wikiHit.query.trim().toLowerCase();
+        const matches = (
+          q
+            ? titles.filter((title) => title.toLowerCase().includes(q))
+            : titles
+        ).slice(0, 12);
+        const place = placeMenu(view, wikiHit.start, Math.max(matches.length, 1));
+        setWiki({ ...wikiHit, ...place });
+        setWikiIndex(0);
+        return;
+      }
+      setWiki(null);
+
+      const latexHit = detectLatex(body, caret);
+      if (latexHit) {
+        setSlash(null);
+        const matches = filterLatexCommands(latexHit.query);
+        const place = placeMenu(
+          view,
+          latexHit.start,
+          Math.max(matches.length, 1),
+        );
+        setLatex({ ...latexHit, ...place });
+        setLatexIndex(0);
+        return;
+      }
+      setLatex(null);
+
+      const hit = detectSlash(body, caret);
+      if (!hit) {
+        setSlash(null);
+        return;
+      }
+      const matches = filterSlashCommands(hit.query);
+      const place = placeMenu(view, hit.start, Math.max(matches.length, 1));
+      setSlash({ ...hit, ...place });
+      setSlashIndex(0);
+    };
+
+    const applyFromKey = () => {
+      const w = wikiRef.current;
+      const wlist = wikiListRef.current;
+      if (w && wlist.length) {
+        applyWikiTitle(wlist[wikiIndexRef.current] || wlist[0]);
+        return true;
+      }
+      const lhit = latexRef.current;
+      const llist = latexListRef.current;
+      if (lhit && llist.length) {
+        applyLatexCommand(llist[latexIndexRef.current] || llist[0]);
+        return true;
+      }
+      const list = slashListRef.current;
+      const s = slashRef.current;
+      if (!s || !list.length) return false;
+      applySlashCommand(list[slashIndexRef.current] || list[0]);
+      return true;
+    };
+
+    const vimCompartment = new Compartment();
+    vimCompartmentRef.current = vimCompartment;
+
+    const state = EditorState.create({
+      doc: value || '',
+      extensions: [
+        lineNumbers(),
+        drawSelection(),
+        history(),
+        markdown(),
+        wikiLinkPlugin,
+        vimCompartment.of(vimMode ? vim() : []),
+        syntaxHighlighting(coolHighlight),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        editorTheme,
+        placeholder("Type '/' for commands, [[ notes, or \\ in math…"),
+        keymap.of([
+          {
+            key: 'ArrowDown',
+            run: () => {
+              if (wikiRef.current && wikiListRef.current.length) {
+                setWikiIndex((i) => (i + 1) % wikiListRef.current.length);
+                return true;
+              }
+              if (latexRef.current && latexListRef.current.length) {
+                setLatexIndex((i) => (i + 1) % latexListRef.current.length);
+                return true;
+              }
+              if (!slashRef.current || !slashListRef.current.length) return false;
+              setSlashIndex((i) => (i + 1) % slashListRef.current.length);
+              return true;
+            },
+          },
+          {
+            key: 'ArrowUp',
+            run: () => {
+              if (wikiRef.current && wikiListRef.current.length) {
+                setWikiIndex(
+                  (i) =>
+                    (i - 1 + wikiListRef.current.length) %
+                    wikiListRef.current.length,
+                );
+                return true;
+              }
+              if (latexRef.current && latexListRef.current.length) {
+                setLatexIndex(
+                  (i) =>
+                    (i - 1 + latexListRef.current.length) %
+                    latexListRef.current.length,
+                );
+                return true;
+              }
+              if (!slashRef.current || !slashListRef.current.length) return false;
+              setSlashIndex(
+                (i) =>
+                  (i - 1 + slashListRef.current.length) %
+                  slashListRef.current.length,
+              );
+              return true;
+            },
+          },
+          { key: 'Enter', run: applyFromKey },
+          { key: 'Tab', run: applyFromKey },
+          {
+            key: 'Escape',
+            run: () => {
+              if (wikiRef.current) {
+                setWiki(null);
+                return true;
+              }
+              if (latexRef.current) {
+                setLatex(null);
+                return true;
+              }
+              if (!slashRef.current) return false;
+              setSlash(null);
+              return true;
+            },
+          },
+          // Mac CM maps Ctrl-d → deleteCharForward (emacs). In vim mode, half-page scroll.
+          {
+            key: 'Ctrl-d',
+            run: (view) => {
+              if (!vimModeRef.current) return false;
+              return scrollVimHalfPage(view, 1);
+            },
+            preventDefault: true,
+          },
+          {
+            key: 'Ctrl-u',
+            run: (view) => {
+              if (!vimModeRef.current) return false;
+              return scrollVimHalfPage(view, -1);
+            },
+            preventDefault: true,
+          },
+          ...defaultKeymap,
+          ...historyKeymap,
+          indentWithTab,
+        ]),
+        EditorView.lineWrapping,
+        // Native Electron spellcheck does not mark CodeMirror on Electron 44 — JS dictionaries instead.
+        ...spellcheckExtension(),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            onChangeRef.current(update.state.doc.toString());
+          }
+          if (update.docChanged || update.selectionSet) {
+            updateMenus(update.view);
+          }
+          if (update.selectionSet || update.docChanged) {
+            setVimCursor(readVimCursor(update.view));
+          }
+        }),
+        EditorView.domEventHandlers({
+          scroll: (_event, view) => {
+            const scroller = view.scrollDOM;
+            const max = scroller.scrollHeight - scroller.clientHeight;
+            if (max > 0) onScrollRef.current?.(scroller.scrollTop / max);
+            return false;
+          },
+          contextmenu: (event, view) => {
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos == null) return false;
+            const hit = wordAt(view.state, pos);
+            if (!hit) return false;
+            const bad = view.state.field(misspelledField);
+            if (!bad.has(hit.word) && !bad.has(hit.word.toLowerCase())) return false;
+            event.preventDefault();
+            void (async () => {
+              let suggestions = [];
+              try {
+                suggestions = (await window.taknot?.suggestSpelling?.(hit.word)) || [];
+              } catch {
+                suggestions = [];
+              }
+              setSpellMenu({
+                top: event.clientY,
+                left: event.clientX,
+                word: hit.word,
+                from: hit.from,
+                to: hit.to,
+                suggestions,
+              });
+            })();
+            return true;
+          },
+        }),
+      ],
+    });
+
+    const view = new EditorView({ state, parent: hostRef.current });
+    viewRef.current = view;
+    setVimCursor(readVimCursor(view));
+
+    const syncVimStatus = () => {
+      if (!vimMode) {
+        setVimStatus(null);
+        return;
+      }
+      const cm = getCM(view);
+      const mode = cm?.state?.vim?.mode || 'normal';
+      setVimStatus(formatVimMode(mode));
+    };
+    syncVimStatus();
+    const cm = getCM(view);
+    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    if (cm) cm.on('vim-mode-change', onMode);
+
+    return () => {
+      if (cm) cm.off('vim-mode-change', onMode);
+      view.destroy();
+      viewRef.current = null;
+      vimCompartmentRef.current = null;
+      setVimStatus(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteId]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    const compartment = vimCompartmentRef.current;
+    if (!view || !compartment) return undefined;
+    view.dispatch({
+      effects: compartment.reconfigure(vimMode ? vim() : []),
+    });
+    if (!vimMode) {
+      setVimStatus(null);
+      return undefined;
+    }
+    const cm = getCM(view);
+    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    setVimStatus(formatVimMode(cm?.state?.vim?.mode || 'normal'));
+    if (cm) cm.on('vim-mode-change', onMode);
+    return () => {
+      if (cm) cm.off('vim-mode-change', onMode);
+    };
+  }, [vimMode]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const next = value || '';
+    const current = view.state.doc.toString();
+    if (next === current) return;
+    const sel = view.state.selection.main;
+    const scrollTop = view.scrollDOM.scrollTop;
+    const anchor = Math.min(sel.anchor, next.length);
+    const head = Math.min(sel.head, next.length);
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: next },
+      selection: { anchor, head },
+    });
+    requestAnimationFrame(() => {
+      if (viewRef.current === view) {
+        view.scrollDOM.scrollTop = scrollTop;
+      }
+    });
+  }, [value]);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.defaultPrevented) return;
+      const view = viewRef.current;
+      if (!view) return;
+      // Only when editor (or its host) has focus
+      if (!view.hasFocus) return;
+      const hk = loadHotkeys();
+      if (hk.bold && eventMatchesHotkey(e, hk.bold)) {
+        e.preventDefault();
+        wrapMarkdown(view, '**');
+        return;
+      }
+      if (hk.italic && eventMatchesHotkey(e, hk.italic)) {
+        e.preventDefault();
+        wrapMarkdown(view, '*');
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [noteId]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!apiRef) return undefined;
+    apiRef.current = {
+      setScrollRatio: (ratio) => {
+        if (!view) return;
+        const scroller = view.scrollDOM;
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        if (max > 0) scroller.scrollTop = ratio * max;
+      },
+    };
+    return () => {
+      apiRef.current = null;
+    };
+  }, [noteId, apiRef]);
+
+  useEffect(() => {
+    if (!vimMode) return undefined;
+    const tick = () => {
+      const d = new Date();
+      setVimClock(
+        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      );
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [vimMode]);
+
+  useEffect(() => {
+    if (!spellMenu) return undefined;
+    const close = () => setSpellMenu(null);
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [spellMenu]);
+
+  return (
+    <div className="md-code-wrap">
+      <div className="md-code-editor" ref={hostRef} />
+      {vimMode && vimStatus && (
+        <div className={`vim-status vim-${vimStatus.key}`} aria-label="Vim statusline">
+          <span className="vim-seg vim-seg-mode">{vimStatus.label}</span>
+          <span className="vim-seg vim-seg-grow" />
+          <span className="vim-seg vim-seg-right vim-pos">
+            {vimCursor.pct}%&nbsp;&nbsp;{vimCursor.line}:{vimCursor.col}
+          </span>
+          <span className="vim-seg vim-seg-end">{vimClock}</span>
+        </div>
+      )}
+      {wiki &&
+        createPortal(
+          <div
+            className="slash-menu wiki-menu"
+            ref={wikiMenuRef}
+            style={{
+              top: wiki.top,
+              left: wiki.left,
+              maxHeight: wiki.maxHeight || 280,
+            }}
+            role="listbox"
+          >
+            {wikiList.length === 0 ? (
+              <div className="slash-item muted">No matching notes</div>
+            ) : (
+              wikiList.map((title, i) => (
+                <button
+                  key={title}
+                  type="button"
+                  role="option"
+                  aria-selected={i === wikiIndex}
+                  className={`slash-item wiki-item ${i === wikiIndex ? 'active' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyWikiTitle(title);
+                  }}
+                >
+                  <span className="slash-label">{title}</span>
+                </button>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
+      {latex &&
+        latexList.length > 0 &&
+        createPortal(
+          <div
+            className="slash-menu latex-menu"
+            ref={latexMenuRef}
+            style={{
+              top: latex.top,
+              left: latex.left,
+              maxHeight: latex.maxHeight || 280,
+            }}
+            role="listbox"
+          >
+            {latexList.map((cmd, i) => (
+              <button
+                key={cmd.id}
+                type="button"
+                role="option"
+                aria-selected={i === latexIndex}
+                className={`slash-item latex-item ${i === latexIndex ? 'active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyLatexCommand(cmd);
+                }}
+              >
+                <span className="slash-label">{cmd.label}</span>
+                <span className="slash-hint">{cmd.hint}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+      {slash &&
+        slashList.length > 0 &&
+        createPortal(
+          <div
+            className="slash-menu"
+            ref={slashMenuRef}
+            style={{
+              top: slash.top,
+              left: slash.left,
+              maxHeight: slash.maxHeight || 280,
+            }}
+            role="listbox"
+          >
+            {slashList.map((cmd, i) => (
+              <button
+                key={cmd.id}
+                type="button"
+                role="option"
+                aria-selected={i === slashIndex}
+                className={`slash-item ${i === slashIndex ? 'active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applySlashCommand(cmd);
+                }}
+              >
+                <span className="slash-label">{cmd.label}</span>
+                <span className="slash-hint">{cmd.hint}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+
+      {spellMenu &&
+        createPortal(
+          <div
+            className="spell-menu"
+            style={{ top: spellMenu.top, left: spellMenu.left }}
+            role="menu"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {spellMenu.suggestions.length === 0 ? (
+              <div className="spell-menu-empty">No suggestions</div>
+            ) : (
+              spellMenu.suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="spell-menu-item"
+                  role="menuitem"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const view = viewRef.current;
+                    if (!view) return;
+                    view.dispatch({
+                      changes: {
+                        from: spellMenu.from,
+                        to: spellMenu.to,
+                        insert: s,
+                      },
+                    });
+                    setSpellMenu(null);
+                  }}
+                >
+                  {s}
+                </button>
+              ))
+            )}
+            <div className="spell-menu-sep" />
+            <button
+              type="button"
+              className="spell-menu-item muted"
+              role="menuitem"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const view = viewRef.current;
+                addCustomWord(spellMenu.word);
+                if (view) {
+                  const next = new Set(view.state.field(misspelledField));
+                  next.delete(spellMenu.word);
+                  next.delete(spellMenu.word.toLowerCase());
+                  view.dispatch({ effects: setMisspelledEffect.of(next) });
+                }
+                setSpellMenu(null);
+              }}
+            >
+              Add to dictionary
+            </button>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}

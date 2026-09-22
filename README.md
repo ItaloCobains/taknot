@@ -43,7 +43,7 @@ npm install
 npm start
 ```
 
-Depois de mudar código do **main** / `vault.js` / `preload.js`, no terminal do Forge digite `rs` para reiniciar o processo main (o renderer hot-reloada sozinho).
+Depois de mudar código do **main** / `vault.ts` / `preload.ts`, no terminal do Forge digite `rs` para reiniciar o processo main (o renderer hot-reloada sozinho).
 
 ### Scripts
 
@@ -133,8 +133,8 @@ git push origin v0.0.9
 src/
   main.js          # processo principal Electron (+ vault watch + MCP HTTP)
   mcpHttp.js       # MCP Streamable HTTP (localhost)
-  preload.js       # bridge IPC
-  vault.js         # notebooks, notes, tags, templates
+  preload.ts       # bridge IPC
+  vault.ts         # notebooks, notes, tags, templates
   renderer/        # React UI + CodeMirror
 ```
 

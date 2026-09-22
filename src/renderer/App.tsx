@@ -1,14 +1,14 @@
 // @ts-nocheck — shell still JS-shaped; tighten types file-by-file.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { BUILTIN_TEMPLATES, groupTemplates } from './templates.js';
-import EditorPane from './EditorPane.jsx';
-import QuickSearch from './QuickSearch.jsx';
-import GraphView from './GraphView.jsx';
-import { useHotkeysState } from './HotkeySettings.jsx';
-import { formatHotkey } from './hotkeys.js';
-import { tagColorMap } from './TagBadge.jsx';
-import { renderMarkdown } from './markdown.js';
+import { BUILTIN_TEMPLATES, groupTemplates } from './templates';
+import EditorPane from './EditorPane';
+import QuickSearch from './QuickSearch';
+import GraphView from './GraphView';
+import { useHotkeysState } from './HotkeySettings';
+import { formatHotkey } from './hotkeys';
+import { tagColorMap } from './TagBadge';
+import { renderMarkdown } from './markdown';
 import { flattenNotebooks } from './lib/notebooks';
 import {
   TRANSLUCENCY_KEY,
@@ -20,21 +20,21 @@ import {
   applyTranslucency,
 } from './lib/prefs';
 import { noteSnapshot } from './lib/format';
-import { useAppHotkeys } from './useAppHotkeys.js';
-import { useNoteVault } from './useNoteVault.js';
-import { useContextMenuDismiss } from './useContextMenuDismiss.js';
-import { useNotebookActions } from './useNotebookActions.js';
-import { useTagActions } from './useTagActions.js';
-import { useNoteNavigation } from './useNoteNavigation.js';
-import { useTemplateActions } from './useTemplateActions.js';
-import SettingsPanel from './SettingsPanel.jsx';
-import TagSettingsModal from './TagSettingsModal.jsx';
-import NotebookDetailModal from './NotebookDetailModal.jsx';
-import Sidebar from './Sidebar.jsx';
-import NoteList from './NoteList.jsx';
-import NotebookContextMenus from './NotebookContextMenus.jsx';
-import TagContextMenu from './TagContextMenu.jsx';
-import TemplatePane from './TemplatePane.jsx';
+import { useAppHotkeys } from './useAppHotkeys';
+import { useNoteVault } from './useNoteVault';
+import { useContextMenuDismiss } from './useContextMenuDismiss';
+import { useNotebookActions } from './useNotebookActions';
+import { useTagActions } from './useTagActions';
+import { useNoteNavigation } from './useNoteNavigation';
+import { useTemplateActions } from './useTemplateActions';
+import SettingsPanel from './SettingsPanel';
+import TagSettingsModal from './TagSettingsModal';
+import NotebookDetailModal from './NotebookDetailModal';
+import Sidebar from './Sidebar';
+import NoteList from './NoteList';
+import NotebookContextMenus from './NotebookContextMenus';
+import TagContextMenu from './TagContextMenu';
+import TemplatePane from './TemplatePane';
 
 export default function App() {
   const [notebooks, setNotebooks] = useState([]);
