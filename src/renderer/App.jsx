@@ -23,6 +23,8 @@ import { useNoteVault } from './useNoteVault.js';
 import { useContextMenuDismiss } from './useContextMenuDismiss.js';
 import { useNotebookActions } from './useNotebookActions.js';
 import { useTagActions } from './useTagActions.js';
+import { useNoteNavigation } from './useNoteNavigation.js';
+import { useTemplateActions } from './useTemplateActions.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import TagSettingsModal from './TagSettingsModal.jsx';
 import NotebookDetailModal from './NotebookDetailModal.jsx';
@@ -203,164 +205,53 @@ export default function App() {
     refreshNotes,
   });
 
-  async function togglePin() {
-    if (!note?.id) return;
-    const next = { ...note, pinned: !Boolean(note.pinned) };
-    setNote(next);
-    noteRef.current = next;
-    setNotes((prev) => {
-      const rest = prev.filter((x) => x.id !== next.id);
-      const row = { ...(prev.find((x) => x.id === next.id) || {}), ...next };
-      return [row, ...rest].sort((a, b) => {
-        const ap = a.pinned ? 1 : 0;
-        const bp = b.pinned ? 1 : 0;
-        if (ap !== bp) return bp - ap;
-        return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
-      });
-    });
-    const saved = await persistNote(next, { force: true });
-    if (!saved) {
-      console.error('togglePin: save failed');
-      setNote(note);
-      noteRef.current = note;
-      await refreshNotes();
-    }
-  }
+  const {
+    togglePin,
+    selectNote,
+    openNoteByTitle,
+    goBack,
+    goForward,
+    openCreate,
+    handleDelete,
+  } = useNoteNavigation({
+    note,
+    notes,
+    history,
+    historyIndex,
+    noteRef,
+    saveBaselineRef,
+    persistNote,
+    refreshNotes,
+    refreshMeta,
+    setNote,
+    setNotes,
+    setSelectedId,
+    setHistory,
+    setHistoryIndex,
+    setFocusMode,
+    setSelectedTemplateId,
+  });
 
-
-  function selectNote(id, { pushHistory = true } = {}) {
-    const latest = noteRef.current;
-    if (
-      latest?.id &&
-      latest.id !== id &&
-      noteSnapshot(latest) !== saveBaselineRef.current
-    ) {
-      void persistNote(latest);
-    }
-    setSelectedId(id);
-    if (!id || !pushHistory) return;
-    const trimmed = history.slice(0, historyIndex + 1);
-    if (trimmed[trimmed.length - 1] === id) return;
-    const next = [...trimmed, id].slice(-50);
-    setHistory(next);
-    setHistoryIndex(next.length - 1);
-  }
-
-  async function openNoteByTitle(title) {
-    const q = String(title || '').trim().toLowerCase();
-    if (!q) return;
-    const hit =
-      notes.find((n) => (n.title || '').trim().toLowerCase() === q) || null;
-    if (hit) {
-      selectNote(hit.id);
-      return;
-    }
-    const list = await refreshNotes();
-    const again = (list || []).find(
-      (n) => (n.title || '').trim().toLowerCase() === q,
-    );
-    if (again) selectNote(again.id);
-  }
-
-  function goBack() {
-    if (historyIndex <= 0) return;
-    const next = historyIndex - 1;
-    setHistoryIndex(next);
-    setSelectedId(history[next]);
-  }
-
-  function goForward() {
-    if (historyIndex >= history.length - 1) return;
-    const next = historyIndex + 1;
-    setHistoryIndex(next);
-    setSelectedId(history[next]);
-  }
-
-  function openCreate() {
-    setFocusMode(false);
-    setSelectedId(null);
-    setNote(null);
-    setSelectedTemplateId('blank');
-  }
-
-  function handleNewClick() {
-    if (!note) {
-      createFromTemplate();
-      return;
-    }
-    openCreate();
-  }
-
-  async function createFromTemplate(template) {
-    const t =
-      template ||
-      allTemplates.find((item) => item.id === selectedTemplateId) ||
-      allTemplates[0];
-    const notebookId =
-      filter.type === 'notebook' ? filter.id : 'nb_inbox';
-    try {
-      const created = await window.taknot.createNote({
-        notebookId,
-        title: t.name === 'Blank note' ? 'Untitled' : t.name,
-        body: t.body || '# Untitled\n\n',
-      });
-      await refreshNotes();
-      await refreshMeta();
-      selectNote(created.id);
-    } catch (err) {
-      console.error('Failed to create note', err);
-    }
-  }
-
-  function openNewTemplate() {
-    setTemplateEditor({
-      name: '',
-      category: 'Custom',
-      body: '# \n\n',
-    });
-  }
-
-  function openEditTemplate(t) {
-    if (!t || t.builtin) return;
-    setTemplateEditor({
-      id: t.id,
-      name: t.name,
-      category: t.category,
-      body: t.body || '',
-    });
-  }
-
-  async function saveTemplateEditor() {
-    if (!templateEditor) return
-    const name = templateEditor.name.trim()
-    if (!name) return
-    try {
-      const saved = await window.taknot.saveTemplate({
-        id: templateEditor.id,
-        name,
-        category: templateEditor.category.trim() || 'Custom',
-        body: templateEditor.body,
-      })
-      await refreshMeta()
-      setSelectedTemplateId(saved.id)
-      setTemplateEditor(null)
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  async function removeTemplate(id) {
-    try {
-      await window.taknot.deleteTemplate(id)
-      await refreshMeta()
-      if (selectedTemplateId === id)
-        setSelectedTemplateId('blank')
-
-      setTemplateEditor(null)
-    } catch (err) {
-      console.error(err)
-    }
-  }
+  const {
+    handleNewClick,
+    createFromTemplate,
+    openNewTemplate,
+    openEditTemplate,
+    saveTemplateEditor,
+    removeTemplate,
+  } = useTemplateActions({
+    note,
+    allTemplates,
+    selectedTemplateId,
+    templateEditor,
+    filter,
+    selectNote,
+    openCreate,
+    refreshNotes,
+    refreshMeta,
+    setTemplateEditor,
+    setSelectedTemplateId,
+  });
 
   useAppHotkeys({
     hotkeysRef,
@@ -401,17 +292,6 @@ export default function App() {
     setNotes,
     setHistoryIndex,
   });
-
-  async function handleDelete() {
-    if (!note) return;
-    await window.taknot.deleteNote(note.id);
-    setFocusMode(false);
-    setSelectedId(null);
-    setNote(null);
-    await refreshNotes();
-    await refreshMeta();
-  }
-
 
   useContextMenuDismiss({
     nbMenu,
