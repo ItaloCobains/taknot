@@ -20,3 +20,15 @@ export function titleFromBody(body) {
 export function isMac() {
   return navigator.platform.toUpperCase().includes('MAC');
 }
+
+export function noteSnapshot(n) {
+  return JSON.stringify({
+    id: n.id,
+    title: titleFromBody(n.body),
+    body: n.body,
+    notebookId: n.notebookId,
+    tags: n.tags || [],
+    status: n.status,
+    pinned: Boolean(n.pinned),
+  });
+}

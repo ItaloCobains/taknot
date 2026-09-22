@@ -5,7 +5,6 @@ import EditorPane from './EditorPane.jsx';
 import QuickSearch from './QuickSearch.jsx';
 import GraphView from './GraphView.jsx';
 import { useHotkeysState } from './HotkeySettings.jsx';
-import { eventMatchesHotkey, formatHotkey } from './hotkeys.js';
 import { tagColorMap } from './TagBadge.jsx';
 import { renderMarkdown } from './markdown.js';
 import { flattenNotebooks } from './lib/notebooks.js';
@@ -18,7 +17,9 @@ import {
   readStoredVimMode,
   applyTranslucency,
 } from './lib/prefs.js';
-import { titleFromBody } from './lib/format.js';
+import { noteSnapshot } from './lib/format.js';
+import { useAppHotkeys } from './useAppHotkeys.js';
+import { useNoteVault } from './useNoteVault.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import TagSettingsModal from './TagSettingsModal.jsx';
 import NotebookDetailModal from './NotebookDetailModal.jsx';
@@ -96,17 +97,6 @@ export default function App() {
     })
   }
 
-  function noteSnapshot(n) {
-    return JSON.stringify({
-      id: n.id,
-      title: titleFromBody(n.body),
-      body: n.body,
-      notebookId: n.notebookId,
-      tags: n.tags || [],
-      status: n.status,
-      pinned: Boolean(n.pinned),
-    });
-  }
 
   useEffect(() => {
     applyTranslucency(translucency);
@@ -196,169 +186,19 @@ export default function App() {
     window.taknot?.getMcpInfo?.().then(setMcpInfo).catch(() => {});
   }, [settingsOpen]);
 
-  const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
-
-  // External vault writes (MCP / another process) → refresh UI.
-  useEffect(() => {
-    if (typeof window.taknot?.onVaultChanged !== 'function') return undefined;
-    return window.taknot.onVaultChanged(() => {
-      // Ignore our own autosave writes — reloading would reset the editor cursor.
-      if (savingRef.current) {
-        refreshMeta().catch(console.error);
-        refreshNotes().catch(console.error);
-        return;
-      }
-      refreshMeta().catch(console.error);
-      refreshNotes()
-        .then(async (list) => {
-          const id = selectedIdRef.current;
-          if (!id) return;
-          if (!list.some((n) => n.id === id)) {
-            setSelectedId(null);
-            setNote(null);
-            return;
-          }
-          const current = noteRef.current;
-          // Don't clobber in-progress edits.
-          if (current && noteSnapshot(current) !== saveBaselineRef.current) return;
-          const n = await window.taknot.getNote(id);
-          // Same body → only refresh meta fields (avoid CodeMirror doc replace).
-          if (current && current.body === n.body) {
-            setNote((prev) =>
-              prev && prev.id === n.id
-                ? {
-                    ...prev,
-                    title: n.title,
-                    updatedAt: n.updatedAt,
-                    pinned: Boolean(n.pinned),
-                    status: n.status,
-                    tags: n.tags,
-                    notebookId: n.notebookId,
-                  }
-                : prev,
-            );
-            saveBaselineRef.current = noteSnapshot({ ...current, ...n, body: current.body });
-            return;
-          }
-          setNote(n);
-          saveBaselineRef.current = noteSnapshot(n);
-        })
-        .catch(console.error);
-    });
-  }, [refreshMeta, refreshNotes]);
-
-  useEffect(() => {
-    if (!selectedId) {
-      setNote(null);
-      return;
-    }
-    let cancelled = false;
-    window.taknot
-      .getNote(selectedId)
-      .then((n) => {
-        if (!cancelled) {
-          setNote(n);
-          saveBaselineRef.current = noteSnapshot(n);
-        }
-      })
-      .catch(console.error);
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
-
-  const persistNote = useCallback(async (n, { force = false } = {}) => {
-    if (!n?.id) return null;
-    const payload = {
-      id: n.id,
-      title: titleFromBody(n.body),
-      body: n.body,
-      notebookId: n.notebookId,
-      tags: n.tags || [],
-      status: n.status,
-      pinned: Boolean(n.pinned),
-    };
-    const snap = JSON.stringify(payload);
-    if (!force && snap === saveBaselineRef.current) return n;
-    savingRef.current = true;
-    setSaving(true);
-    try {
-      const saved = await window.taknot.saveNote(payload);
-      const merged = { ...n, ...saved, pinned: Boolean(saved.pinned) };
-      saveBaselineRef.current = noteSnapshot(merged);
-      setNote((prev) =>
-        prev && prev.id === saved.id
-          ? {
-              ...prev,
-              title: saved.title,
-              updatedAt: saved.updatedAt,
-              pinned: Boolean(saved.pinned),
-            }
-          : prev,
-      );
-      setNotes((prev) => {
-        const rest = prev.filter((x) => x.id !== saved.id);
-        const row = {
-          ...(prev.find((x) => x.id === saved.id) || {}),
-          ...saved,
-          pinned: Boolean(saved.pinned),
-        };
-        return [row, ...rest].sort((a, b) => {
-          const ap = a.pinned ? 1 : 0;
-          const bp = b.pinned ? 1 : 0;
-          if (ap !== bp) return bp - ap;
-          return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
-        });
-      });
-      return saved;
-    } catch (err) {
-      console.error(err);
-      return null;
-    } finally {
-      setSaving(false);
-      // Let fs.watch settle before accepting external vault reloads.
-      setTimeout(() => {
-        savingRef.current = false;
-      }, 250);
-    }
-  }, []);
-
-  // Debounced autosave. Cleanup must ONLY clear the timer — persisting on
-  // every dependency change was saving on each keystroke and racing vault:changed,
-  // which reloaded the note and reset the CodeMirror cursor.
-  useEffect(() => {
-    if (!note?.id) return undefined;
-    const snap = noteSnapshot(note);
-    if (snap === saveBaselineRef.current) return undefined;
-
-    const handle = setTimeout(() => {
-      const latest = noteRef.current;
-      if (latest?.id) void persistNote(latest);
-    }, 600);
-    return () => clearTimeout(handle);
-  }, [
-    note?.id,
-    note?.body,
-    note?.notebookId,
-    note?.status,
-    note?.tags,
-    note?.pinned,
-    persistNote,
-  ]);
-
-  // Flush pending edits when switching notes or unmounting.
-  useEffect(() => {
-    return () => {
-      const latest = noteRef.current;
-      if (
-        latest?.id &&
-        noteSnapshot(latest) !== saveBaselineRef.current
-      ) {
-        void persistNote(latest);
-      }
-    };
-  }, [selectedId, persistNote]);
+  const { persistNote } = useNoteVault({
+    selectedId,
+    note,
+    noteRef,
+    savingRef,
+    saveBaselineRef,
+    setNote,
+    setNotes,
+    setSelectedId,
+    setSaving,
+    refreshMeta,
+    refreshNotes,
+  });
 
   async function togglePin() {
     if (!note?.id) return;
@@ -519,199 +359,16 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    function onKeyDown(e) {
-      // Don't steal keys while recording a binding in Settings
-      if (e.target?.closest?.('.hotkey-bind.is-recording')) return;
-
-      const hk = hotkeysRef.current;
-
-      // Escape: close overlays top-down (menus → modals → panels)
-      if (e.key === 'Escape') {
-        if (nbMenu || tagMenu || iconPicker || movePicker) {
-          e.preventDefault();
-          setNbMenu(null);
-          setTagMenu(null);
-          setIconPicker(null);
-          setMovePicker(null);
-          return;
-        }
-        if (tagEdit) {
-          e.preventDefault();
-          setTagEdit(null);
-          return;
-        }
-        if (notebookDetail) {
-          e.preventDefault();
-          setNotebookDetail(null);
-          return;
-        }
-        if (templateEditor) {
-          e.preventDefault();
-          setTemplateEditor(null);
-          return;
-        }
-        if (quickSearchOpen) {
-          e.preventDefault();
-          setQuickSearchOpen(false);
-          return;
-        }
-        if (settingsOpen) {
-          e.preventDefault();
-          setSettingsOpen(false);
-          return;
-        }
-        if (focusMode) {
-          // In vim mode, Esc must reach CodeMirror (insert → normal), not exit focus.
-          if (
-            vimMode &&
-            e.target?.closest?.('.cm-editor, .md-code-editor, .md-code-wrap')
-          ) {
-            return;
-          }
-          e.preventDefault();
-          setFocusMode(false);
-          return;
-        }
-        if (graphOpen) {
-          e.preventDefault();
-          setGraphOpen(false);
-          return;
-        }
-        return;
-      }
-
-      const run = (id) => hk[id] && eventMatchesHotkey(e, hk[id]);
-
-      if (run('newNote')) {
-        e.preventDefault();
-        openCreate();
-        return;
-      }
-      if (run('toggleSidebar')) {
-        e.preventDefault();
-        setSidebarOpen((v) => !v);
-        return;
-      }
-      if (run('quickSearch')) {
-        e.preventDefault();
-        setQuickSearchOpen((v) => !v);
-        setFocusMode(false);
-        return;
-      }
-      if (run('saveNote')) {
-        e.preventDefault();
-        const latest = noteRef.current;
-        if (latest?.id) void persistNote(latest, { force: true });
-        return;
-      }
-      if (run('togglePin')) {
-        e.preventDefault();
-        const cur = noteRef.current;
-        if (!cur?.id) return;
-        const next = { ...cur, pinned: !Boolean(cur.pinned) };
-        setNote(next);
-        noteRef.current = next;
-        setNotes((prev) => {
-          const rest = prev.filter((x) => x.id !== next.id);
-          const row = { ...(prev.find((x) => x.id === next.id) || {}), ...next };
-          return [row, ...rest].sort((a, b) => {
-            const ap = a.pinned ? 1 : 0;
-            const bp = b.pinned ? 1 : 0;
-            if (ap !== bp) return bp - ap;
-            return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
-          });
-        });
-        void persistNote(next, { force: true });
-        return;
-      }
-      if (run('toggleFocus')) {
-        e.preventDefault();
-        setFocusMode((v) => !v);
-        return;
-      }
-      if (run('openSettings')) {
-        e.preventDefault();
-        setSettingsOpen((v) => !v);
-        return;
-      }
-      if (run('collapseSidebar')) {
-        e.preventDefault();
-        setSidebarOpen(false);
-        return;
-      }
-      if (run('expandSidebar')) {
-        e.preventDefault();
-        setSidebarOpen(true);
-        return;
-      }
-      if (run('historyBack')) {
-        e.preventDefault();
-        const idx = historyIndexRef.current;
-        if (idx <= 0) return;
-        const next = idx - 1;
-        setHistoryIndex(next);
-        setSelectedId(historyRef.current[next]);
-        setFocusMode(false);
-        return;
-      }
-      if (run('historyForward')) {
-        e.preventDefault();
-        const idx = historyIndexRef.current;
-        const hist = historyRef.current;
-        if (idx >= hist.length - 1) return;
-        const next = idx + 1;
-        setHistoryIndex(next);
-        setSelectedId(hist[next]);
-        setFocusMode(false);
-        return;
-      }
-      if (run('closeNote')) {
-        e.preventDefault();
-        const latest = noteRef.current;
-        if (latest?.id && noteSnapshot(latest) !== saveBaselineRef.current) {
-          void persistNote(latest, { force: true });
-        }
-        setFocusMode(false);
-        setSelectedId(null);
-        setNote(null);
-        return;
-      }
-      if (run('focusListSearch')) {
-        e.preventDefault();
-        setFocusMode(false);
-        const el = listSearchRef.current;
-        if (el) {
-          el.focus();
-          el.select?.();
-        }
-        return;
-      }
-      const statusMap = {
-        statusActive: 'active',
-        statusOnHold: 'on_hold',
-        statusCompleted: 'completed',
-        statusDropped: 'dropped',
-      };
-      for (const [hid, statusId] of Object.entries(statusMap)) {
-        if (!run(hid)) continue;
-        e.preventDefault();
-        const cur = noteRef.current;
-        if (!cur?.id) return;
-        if (cur.status === statusId) return;
-        const next = { ...cur, status: statusId };
-        setNote(next);
-        noteRef.current = next;
-        setNotes((prev) =>
-          prev.map((n) => (n.id === next.id ? { ...n, status: statusId } : n)),
-        );
-        void persistNote(next, { force: true });
-        return;
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
+  useAppHotkeys({
+    hotkeysRef,
+    noteRef,
+    saveBaselineRef,
+    historyRef,
+    historyIndexRef,
+    listSearchRef,
+    noteSnapshot,
+    persistNote,
+    openCreate,
     nbMenu,
     tagMenu,
     iconPicker,
@@ -724,8 +381,23 @@ export default function App() {
     focusMode,
     graphOpen,
     vimMode,
-    persistNote,
-  ]);
+    setNbMenu,
+    setTagMenu,
+    setIconPicker,
+    setMovePicker,
+    setTagEdit,
+    setNotebookDetail,
+    setTemplateEditor,
+    setQuickSearchOpen,
+    setSettingsOpen,
+    setFocusMode,
+    setGraphOpen,
+    setSidebarOpen,
+    setSelectedId,
+    setNote,
+    setNotes,
+    setHistoryIndex,
+  });
 
   async function handleDelete() {
     if (!note) return;
