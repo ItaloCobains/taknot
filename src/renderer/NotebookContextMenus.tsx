@@ -1,10 +1,26 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { NOTEBOOK_ICON_NAMES, NotebookIcon } from './notebookIcons';
 import { descendantIds } from './lib/notebooks';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
 /** Notebook right-click menu + icon/move pickers. */
+type NotebookContextMenusProps = {
+  nbMenu: any;
+  iconPicker: any;
+  movePicker: any;
+  notebookTree: any;
+  notebooks: any;
+  onShowDetail: any;
+  onCopyId: any;
+  onNewSub: any;
+  onRename: any;
+  onOpenIconPicker: any;
+  onOpenMove: any;
+  onDelete: any;
+  onPickIcon: any;
+  onPickMoveParent: any;
+};
+
 export default function NotebookContextMenus({
   nbMenu,
   iconPicker,
@@ -20,7 +36,7 @@ export default function NotebookContextMenus({
   onDelete,
   onPickIcon,
   onPickMoveParent,
-}) {
+}: NotebookContextMenusProps) {
   return (
     <>
       {nbMenu && (
@@ -136,12 +152,12 @@ export default function NotebookContextMenus({
           </button>
           <div className="menu-sep" />
           {notebookTree
-            .filter((nb) => {
+            .filter((nb: any) => {
               if (nb.id === movePicker.id) return false;
               if (descendantIds(notebooks, movePicker.id).has(nb.id)) return false;
               return true;
             })
-            .map((nb) => (
+            .map((nb: any) => (
               <button
                 key={nb.id}
                 type="button"

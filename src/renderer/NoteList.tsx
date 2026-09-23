@@ -1,4 +1,3 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import {
   ListTodo,
   NotebookPen,
@@ -7,13 +6,34 @@ import {
   Pin,
   Search,
 } from 'lucide-react';
-import { formatHotkey } from './hotkeys';
+import type { RefObject } from 'react';
+import { formatHotkey, type HotkeyMap } from './hotkeys';
 import { relativeTime } from './lib/format';
 import StatusBadge from './StatusBadge';
 import TagBadge from './TagBadge';
+import type { TaknotNote } from '../vite-env';
 
-const ICON = { size: 15, strokeWidth: 1.75 };
-const EMPTY_ICON = { size: 56, strokeWidth: 1.25 };
+const ICON = { size: 15, strokeWidth: 1.75 } as const;
+const EMPTY_ICON = { size: 56, strokeWidth: 1.25 } as const;
+
+type ListNote = TaknotNote & {
+  tasks?: { done: number; total: number };
+};
+
+type Props = {
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  hotkeys: HotkeyMap;
+  listSearchRef: RefObject<HTMLInputElement | null>;
+  query: string;
+  onQueryChange: (q: string) => void;
+  onNewNote: () => void;
+  newNoteShortcut: string;
+  notes: ListNote[];
+  selectedId: string | null;
+  onSelectNote: (id: string) => void;
+  colorsByTag: Record<string, string>;
+};
 
 /** Middle column: search, new note, and the filtered note rows. */
 export default function NoteList({
@@ -29,7 +49,7 @@ export default function NoteList({
   selectedId,
   onSelectNote,
   colorsByTag,
-}) {
+}: Props) {
   return (
     <section className="note-list">
       <header className="pane-header list-header">
@@ -90,7 +110,7 @@ export default function NoteList({
               </div>
               <div className="note-item-meta">
                 <span className="note-item-time">
-                  {relativeTime(n.updatedAt)}
+                  {relativeTime(n.updatedAt || '')}
                 </span>
                 {n.status && <StatusBadge status={n.status} size="sm" />}
                 {n.tasks && (
@@ -107,9 +127,9 @@ export default function NoteList({
                   </span>
                 )}
               </div>
-              {n.tags?.length > 0 && (
+              {(n.tags?.length ?? 0) > 0 && (
                 <div className="note-item-tags">
-                  {n.tags.map((t) => (
+                  {n.tags!.map((t) => (
                     <TagBadge
                       key={t}
                       name={t}

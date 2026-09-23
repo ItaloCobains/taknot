@@ -1,5 +1,15 @@
-// @ts-nocheck — shell still JS-shaped; tighten types file-by-file.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  NoteFilterState,
+  TaknotMcpInfo,
+  TaknotNotebook,
+  TaknotNote,
+  TaknotTag,
+  TaknotTemplate,
+} from '../vite-env';
+import type { HotkeyMap } from './hotkeys';
+
+type EditorNote = TaknotNote & { body: string };
 import { X } from 'lucide-react';
 import { BUILTIN_TEMPLATES, groupTemplates } from './templates';
 import EditorPane from './EditorPane';
@@ -37,61 +47,61 @@ import TagContextMenu from './TagContextMenu';
 import TemplatePane from './TemplatePane';
 
 export default function App() {
-  const [notebooks, setNotebooks] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [notes, setNotes] = useState([]);
-  const [filter, setFilter] = useState({ type: 'all' });
+  const [notebooks, setNotebooks] = useState<TaknotNotebook[]>([]);
+  const [tags, setTags] = useState<TaknotTag[]>([]);
+  const [notes, setNotes] = useState<TaknotNote[]>([]);
+  const [filter, setFilter] = useState<NoteFilterState>({ type: 'all' });
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState(null);
-  const [note, setNote] = useState(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [note, setNote] = useState<EditorNote | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [templateQuery, setTemplateQuery] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('blank');
-  const [customTemplates, setCustomTemplates] = useState([])
-  const [templateEditor, setTemplateEditor] = useState(null)
+  const [customTemplates, setCustomTemplates] = useState<TaknotTemplate[]>([])
+  const [templateEditor, setTemplateEditor] = useState<any>(null)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [translucency, setTranslucency] = useState(readStoredTranslucency);
   const [vimMode, setVimMode] = useState(readStoredVimMode);
   const [hotkeys, setHotkeys] = useHotkeysState();
-  const hotkeysRef = useRef(hotkeys);
+  const hotkeysRef = useRef<HotkeyMap>(hotkeys);
   hotkeysRef.current = hotkeys;
   const [tagsCollapsed, setTagsCollapsed] = useState(readStoredTagsCollapsed);
   const [tagFilterQuery, setTagFilterQuery] = useState('');
   const [appVersion, setAppVersion] = useState("");
-  const [mcpInfo, setMcpInfo] = useState(null);
+  const [mcpInfo, setMcpInfo] = useState<TaknotMcpInfo | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
   const [updateChecking, setUpdateChecking] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [focusMode, setFocusMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
   const [addingNotebook, setAddingNotebook] = useState(false);
-  const [addingUnderId, setAddingUnderId] = useState(null);
+  const [addingUnderId, setAddingUnderId] = useState<string | null>(null);
   const [notebookDraft, setNotebookDraft] = useState('');
-  const [nbMenu, setNbMenu] = useState(null); // { id, name, icon, x, y }
-  const [iconPicker, setIconPicker] = useState(null); // { id, icon, x, y }
-  const [movePicker, setMovePicker] = useState(null); // { id, x, y }
-  const [tagMenu, setTagMenu] = useState(null); // { id, name, color, x, y }
-  const [tagEdit, setTagEdit] = useState(null); // { id, name, color }
-  const [collapsedNotebook, setCollapsedNotebook] = useState(() => new Set())
-  const [renamingNotebookId, setRenamingNotebookId] = useState(null);
+  const [nbMenu, setNbMenu] = useState<any>(null); // { id, name, icon, x, y }
+  const [iconPicker, setIconPicker] = useState<any>(null); // { id, icon, x, y }
+  const [movePicker, setMovePicker] = useState<any>(null); // { id, x, y }
+  const [tagMenu, setTagMenu] = useState<any>(null); // { id, name, color, x, y }
+  const [tagEdit, setTagEdit] = useState<any>(null); // { id, name, color }
+  const [collapsedNotebook, setCollapsedNotebook] = useState(() => new Set<string>())
+  const [renamingNotebookId, setRenamingNotebookId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
-  const [notebookDetail, setNotebookDetail] = useState(null);
-  const saveBaselineRef = useRef(null);
-  const noteRef = useRef(null);
+  const [notebookDetail, setNotebookDetail] = useState<any>(null);
+  const saveBaselineRef = useRef('');
+  const noteRef = useRef<EditorNote | null>(null);
   noteRef.current = note;
-  const listSearchRef = useRef(null);
-  const historyRef = useRef(history);
-  const historyIndexRef = useRef(historyIndex);
+  const listSearchRef = useRef<HTMLInputElement | null>(null);
+  const historyRef = useRef<string[]>(history);
+  const historyIndexRef = useRef<number>(historyIndex);
   historyRef.current = history;
   historyIndexRef.current = historyIndex;
 
   const notebookTree = useMemo(() => flattenNotebooks(notebooks), [notebooks]);
 
-  function toggleNotebookCollapse(id) {
+  function toggleNotebookCollapse(id: string) {
     setCollapsedNotebook((prev) => {
       const next = new Set(prev);
 
@@ -122,7 +132,12 @@ export default function App() {
   }, []);
 
   const listFilter = useMemo(() => {
-    const f = { query: query.trim() || undefined };
+    const f: {
+      query?: string;
+      notebookId?: string;
+      status?: string;
+      tag?: string;
+    } = { query: query.trim() || undefined };
     if (filter.type === 'notebook') f.notebookId = filter.id;
     if (filter.type === 'status') f.status = filter.id;
     if (filter.type === 'tag') f.tag = filter.id;
@@ -432,6 +447,7 @@ export default function App() {
       <QuickSearch
         open={quickSearchOpen}
         onClose={() => setQuickSearchOpen(false)}
+        notes={notes}
         onSelect={(id) => selectNote(id)}
         colorsByTag={colorsByTag}
       />
@@ -530,17 +546,19 @@ export default function App() {
             saving={saving}
             focusMode={focusMode}
             vimMode={vimMode}
-            noteTitles={notes.map((n) => n.title).filter(Boolean)}
+            noteTitles={notes.map((n) => n.title).filter((t): t is string => Boolean(t))}
             canGoBack={historyIndex > 0}
             canGoForward={historyIndex >= 0 && historyIndex < history.length - 1}
             onBack={goBack}
             onForward={goForward}
             onToggleFocus={() => setFocusMode((v) => !v)}
-            onChange={setNote}
+            onChange={(partial) =>
+              setNote((prev) => (prev ? { ...prev, ...partial } : prev))
+            }
             onDelete={handleDelete}
             onOpenNoteByTitle={openNoteByTitle}
             onTogglePin={togglePin}
-            onDuplicated={(created) => {
+            onDuplicated={(created: TaknotNote) => {
               refreshNotes();
               refreshMeta();
               selectNote(created.id);

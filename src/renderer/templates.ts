@@ -1,5 +1,13 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-export const TEMPLATES = [
+import type { TaknotTemplate } from '../vite-env';
+
+type TemplateSeed = {
+  id: string;
+  category: string;
+  name: string;
+  body: string;
+};
+
+export const TEMPLATES: TemplateSeed[] = [
   {
     id: 'blank',
     category: 'General',
@@ -142,16 +150,18 @@ export const TEMPLATES = [
   },
 ];
 
-export const BUILTIN_TEMPLATES = TEMPLATES.map(t => ({
+export const BUILTIN_TEMPLATES: TaknotTemplate[] = TEMPLATES.map((t) => ({
   ...t,
-  builtin: true
-}))
+  builtin: true,
+}));
 
-export function groupTemplates(templates) {
-  const map = new Map();
+export function groupTemplates(
+  templates: TaknotTemplate[],
+): [string, TaknotTemplate[]][] {
+  const map = new Map<string, TaknotTemplate[]>();
   for (const t of templates) {
     if (!map.has(t.category)) map.set(t.category, []);
-    map.get(t.category).push(t);
+    map.get(t.category)!.push(t);
   }
   return [...map.entries()];
 }

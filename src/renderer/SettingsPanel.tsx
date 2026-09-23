@@ -1,12 +1,30 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { X } from 'lucide-react';
 import HotkeySettings from './HotkeySettings';
+import type { HotkeyMap } from './hotkeys';
+import type { TaknotMcpInfo } from '../vite-env';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
 /**
  * App settings dialog: appearance, editor, hotkeys, MCP, updates.
  */
+type SettingsPanelProps = {
+  open: boolean;
+  onClose: () => void;
+  translucency: number;
+  onTranslucencyChange: (n: number) => void;
+  vimMode: boolean;
+  onVimModeChange: (v: boolean) => void;
+  hotkeys: HotkeyMap;
+  onHotkeysChange: (h: HotkeyMap) => void;
+  mcpInfo: TaknotMcpInfo | null;
+  mcpCopied: boolean;
+  onMcpCopied: (v: boolean) => void;
+  appVersion: string;
+  updateChecking: boolean;
+  onUpdateChecking: (v: boolean) => void;
+};
+
 export default function SettingsPanel({
   open,
   onClose,
@@ -22,7 +40,7 @@ export default function SettingsPanel({
   appVersion,
   updateChecking,
   onUpdateChecking,
-}) {
+}: SettingsPanelProps) {
   if (!open) return null;
 
   return (
@@ -123,7 +141,7 @@ export default function SettingsPanel({
               {mcpInfo?.vault ? (
                 <div className="settings-kv">
                   <span>Vault</span>
-                  <code>{mcpInfo.vault}</code>
+                  <code>{String(mcpInfo.vault ?? "")}</code>
                 </div>
               ) : (
                 <p className="settings-hint" style={{ margin: 0 }}>

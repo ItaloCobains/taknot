@@ -1,4 +1,3 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { PenLine, Search } from 'lucide-react';
 
 const ICON = { size: 15, strokeWidth: 1.75 };
@@ -6,6 +5,23 @@ const ICON = { size: 15, strokeWidth: 1.75 };
 /**
  * Empty-editor state: pick/create templates and preview/edit them.
  */
+type TemplatePaneProps = {
+  templateQuery: any;
+  onTemplateQueryChange: any;
+  templateGroups: any;
+  selectedTemplateId: any;
+  onSelectTemplate: any;
+  onCreateFromTemplate: any;
+  onOpenEditTemplate: any;
+  onOpenNewTemplate: any;
+  templateEditor: any;
+  onTemplateEditorChange: any;
+  onCancelTemplateEditor: any;
+  onSaveTemplateEditor: any;
+  onRemoveTemplate: any;
+  templatePreviewHtml: any;
+};
+
 export default function TemplatePane({
   templateQuery,
   onTemplateQueryChange,
@@ -21,7 +37,7 @@ export default function TemplatePane({
   onSaveTemplateEditor,
   onRemoveTemplate,
   templatePreviewHtml,
-}) {
+}: TemplatePaneProps) {
   return (
     <>
       <header className="pane-header template-header">
@@ -46,10 +62,10 @@ export default function TemplatePane({
             />
           </div>
           <div className="template-groups">
-            {templateGroups.map(([category, items]) => (
+            {templateGroups.map(([category, items]: [string, any[]]) => (
               <div key={category} className="template-group">
                 <h3>{category}</h3>
-                {items.map((t) => (
+                {items.map((t: any) => (
                   <button
                     key={t.id}
                     type="button"

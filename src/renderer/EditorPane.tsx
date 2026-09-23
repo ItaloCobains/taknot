@@ -1,5 +1,5 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { TaknotNote } from '../vite-env';
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,12 +28,34 @@ import StatusBadge from './StatusBadge';
 import { STATUSES } from './statuses';
 import { renderMarkdown, toggleTaskAt } from './markdown';
 
-const ICON = { size: 15, strokeWidth: 1.75 };
+const ICON = { size: 15, strokeWidth: 1.75 } as const;
 
-function formatStamp(iso) {
+type EditorNote = TaknotNote & { body: string };
+
+type EditorPaneProps = {
+  note: EditorNote;
+  tagColors?: Record<string, string>;
+  saving: boolean;
+  focusMode: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
+  onToggleFocus: () => void;
+  vimMode?: boolean;
+  noteTitles?: string[];
+  onChange: (partial: Partial<EditorNote>) => void;
+  onDelete: () => void;
+  onDuplicated: (note: TaknotNote) => void;
+  onOpenNoteByTitle: (title: string) => void;
+  onTogglePin: () => void;
+};
+
+
+function formatStamp(iso: string | null | undefined) {
   if (!iso) return '—';
   const d = new Date(iso);
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
@@ -54,17 +76,17 @@ export default function EditorPane({
   onDuplicated,
   onOpenNoteByTitle,
   onTogglePin,
-}) {
-  const [viewMode, setViewMode] = useState('split'); // edit | split | preview
+}: EditorPaneProps) {
+  const [viewMode, setViewMode] = useState<'edit' | 'split' | 'preview'>('split'); // edit | split | preview
   const [tagDraft, setTagDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-  const editorHostRef = useRef(null);
-  const editorApiRef = useRef(null);
-  const previewRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const editorHostRef = useRef<HTMLDivElement | null>(null);
+  const editorApiRef = useRef<{ setScrollRatio?: (r: number) => void } | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const syncingRef = useRef(false);
 
-  function onEditorScrollRatio(ratio) {
+  function onEditorScrollRatio(ratio: number) {
     if (viewMode !== 'split' || syncingRef.current) return;
     const to = previewRef.current;
     if (!to) return;
@@ -77,7 +99,7 @@ export default function EditorPane({
     });
   }
 
-  function onPreviewScroll() {
+  function onPreviewScroll(_e?: Event) {
     if (viewMode !== 'split' || syncingRef.current) return;
     const from = previewRef.current;
     if (!from || !editorApiRef.current?.setScrollRatio) return;
@@ -91,8 +113,8 @@ export default function EditorPane({
   }
 
   useEffect(() => {
-    function onDocClick(e) {
-      if (!menuRef.current?.contains(e.target)) setMenuOpen(false);
+    function onDocClick(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     }
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
@@ -111,23 +133,23 @@ export default function EditorPane({
     return { total, done };
   }, [note?.body]);
 
-  function patch(partial) {
+  function patch(partial: Partial<EditorNote>) {
     onChange({ ...note, ...partial });
   }
 
   function addTag() {
     const tag = tagDraft.trim().toLowerCase();
     if (!tag) return;
-    if (note.tags.includes(tag)) {
+    if ((note.tags || []).includes(tag)) {
       setTagDraft('');
       return;
     }
-    patch({ tags: [...note.tags, tag] });
+    patch({ tags: [...(note.tags ?? []), tag] });
     setTagDraft('');
   }
 
-  function removeTag(tag) {
-    patch({ tags: note.tags.filter((t) => t !== tag) });
+  function removeTag(tag: string) {
+    patch({ tags: (note.tags || []).filter((t: string) => t !== tag) });
   }
 
   async function duplicate() {
@@ -321,7 +343,7 @@ export default function EditorPane({
           </label>
 
           <div className="tag-row">
-            {note.tags.map((tag) => (
+            {(note.tags || []).map((tag: string) => (
               <TagBadge
                 key={tag}
                 name={tag}
@@ -360,7 +382,7 @@ export default function EditorPane({
           </div>
         )}
         {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className="preview" ref={previewRef} onScroll={onPreviewScroll}>
+          <div className="preview" ref={previewRef} onScroll={() => onPreviewScroll()}>
             <div className="meta-cards">
               {tasks && (
                 <div className="meta-card progress-card">
@@ -397,9 +419,9 @@ export default function EditorPane({
                 </div>
               </div>
             </div>
-            {note.tags.length > 0 && (
+            {(note.tags || []).length > 0 && (
               <div className="preview-tags">
-                {note.tags.map((tag) => (
+                {(note.tags || []).map((tag: string) => (
                   <TagBadge key={tag} name={tag} color={tagColors[tag]} />
                 ))}
               </div>
@@ -408,7 +430,7 @@ export default function EditorPane({
               className="markdown"
               dangerouslySetInnerHTML={{ __html: previewHtml }}
               onClick={(e) => {
-                const box = e.target.closest?.('input[type="checkbox"][data-task]');
+                const box = (e.target as Element).closest?.('input[type="checkbox"][data-task]');
                 if (box) {
                   e.preventDefault();
                   const idx = Number(box.getAttribute('data-task'));
@@ -417,7 +439,7 @@ export default function EditorPane({
                   }
                   return;
                 }
-                const wiki = e.target.closest?.('a.wiki-link,[data-wiki-title]');
+                const wiki = (e.target as Element).closest?.('a.wiki-link,[data-wiki-title]');
                 if (wiki) {
                   e.preventDefault();
                   const title =
@@ -431,14 +453,14 @@ export default function EditorPane({
                   onOpenNoteByTitle?.(title);
                   return;
                 }
-                const a = e.target.closest?.('a');
+                const a = (e.target as Element).closest?.('a');
                 if (!a?.href) return;
                 e.preventDefault();
                 window.taknot.openExternal(a.href).catch(console.error);
               }}
               onChange={(e) => {
                 // Keep controlled via body; swallow native toggle flash
-                const box = e.target.closest?.('input[type="checkbox"][data-task]');
+                const box = (e.target as Element).closest?.('input[type="checkbox"][data-task]');
                 if (box) e.preventDefault();
               }}
             />

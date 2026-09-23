@@ -1,5 +1,4 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-import { useMemo } from 'react';
+import { useMemo, type MouseEvent as ReactMouseEvent } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -13,7 +12,45 @@ import {
 } from 'lucide-react';
 import { STATUSES } from './statuses';
 import { NotebookIcon } from './notebookIcons';
-import { formatHotkey } from './hotkeys';
+import { formatHotkey, type HotkeyMap } from './hotkeys';
+import type { NoteFilterState, TaknotNotebook, TaknotTag } from '../vite-env';
+
+type NotebookTreeNode = TaknotNotebook & { children?: NotebookTreeNode[]; depth?: number };
+
+type SidebarProps = {
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
+  onToggleSidebar: () => void;
+  hotkeys: HotkeyMap;
+  graphOpen: boolean;
+  onOpenGraph: () => void;
+  onCloseGraph: () => void;
+  filter: NoteFilterState;
+  onFilterChange: (f: NoteFilterState) => void;
+  notebookTree: NotebookTreeNode[];
+  notebooks: TaknotNotebook[];
+  collapsedNotebook: Set<string>;
+  onToggleNotebookCollapse: (id: string) => void;
+  addingNotebook: boolean;
+  addingUnderId: string | null;
+  notebookDraft: string;
+  onNotebookDraftChange: (v: string) => void;
+  onStartAddNotebook: (parentId?: string | null) => void;
+  onCancelAddNotebook: () => void;
+  onCreateNotebook: () => void;
+  renamingNotebookId: string | null;
+  renameDraft: string;
+  onRenameDraftChange: (v: string) => void;
+  onCommitRename: () => void;
+  onCancelRename: () => void;
+  onOpenNotebookMenu: (e: ReactMouseEvent, nb: TaknotNotebook) => void;
+  tags: TaknotTag[];
+  tagsCollapsed: boolean;
+  onToggleTagsCollapsed: () => void;
+  tagFilterQuery: string;
+  onTagFilterQueryChange: (v: string) => void;
+  onOpenTagMenu: (e: ReactMouseEvent, tag: TaknotTag) => void;
+};
 
 const ICON = { size: 15, strokeWidth: 1.75 };
 
@@ -53,22 +90,22 @@ export default function Sidebar({
   tagFilterQuery,
   onTagFilterQueryChange,
   onOpenTagMenu,
-}) {
+}: SidebarProps) {
   const childIdsByParent = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string | null, string[]>();
     for (const nb of notebooks) {
       const p = nb.parentId || null;
       if (!map.has(p)) map.set(p, []);
-      map.get(p).push(nb.id);
+      map.get(p)!.push(nb.id);
     }
     return map;
   }, [notebooks]);
 
-  function hasChildren(id) {
+  function hasChildren(id: string) {
     return (childIdsByParent.get(id) || []).length > 0;
   }
 
-  function isHiddenByCollapse(nb) {
+  function isHiddenByCollapse(nb: TaknotNotebook) {
     let parentId = nb.parentId || null;
     while (parentId) {
       if (collapsedNotebook.has(parentId)) return true;
@@ -77,11 +114,11 @@ export default function Sidebar({
     return false;
   }
 
-  const notebookName = (id) =>
+  const notebookName = (id: string) =>
     notebooks.find((n) => n.id === id)?.name || 'notebook';
 
-  const isActive = (type, id) =>
-    filter.type === type && (id === undefined || filter.id === id);
+  const isActive = (type: string, id?: string): boolean =>
+    filter.type === type && (!id || ('id' in filter && (filter as { id?: string }).id === id));
 
   const filteredSidebarTags = useMemo(() => {
     const q = tagFilterQuery.trim().toLowerCase();
@@ -141,7 +178,7 @@ export default function Sidebar({
             type="button"
             className="section-icon-btn"
             title="New notebook"
-            onClick={onStartAddNotebook}
+            onClick={() => onStartAddNotebook()}
           >
             <Plus {...ICON} />
           </button>
@@ -189,7 +226,7 @@ export default function Sidebar({
                 <form
                   key={nb.id}
                   className="inline-create"
-                  style={{ paddingLeft: 12 + nb.depth * 12 }}
+                  style={{ paddingLeft: 12 + (nb.depth ?? 0) * 12 }}
                   onSubmit={(e) => {
                     e.preventDefault();
                     onCommitRename();
@@ -210,7 +247,7 @@ export default function Sidebar({
                   key={nb.id}
                   type="button"
                   className={`nav-item ${isActive('notebook', nb.id) ? 'active' : ''}`}
-                  style={{ paddingLeft: 12 + nb.depth * 12 }}
+                  style={{ paddingLeft: 12 + (nb.depth ?? 0) * 12 }}
                   onClick={() => onFilterChange({ type: 'notebook', id: nb.id })}
                   onContextMenu={(e) => onOpenNotebookMenu(e, nb)}
                 >
@@ -296,7 +333,7 @@ export default function Sidebar({
             {tags.length > 0 && filteredSidebarTags.length === 0 && (
               <p className="muted tag-filter-empty">Nenhuma tag</p>
             )}
-            {filteredSidebarTags.map((tag) => (
+            {filteredSidebarTags.map((tag: any) => (
               <button
                 key={tag.id || tag.name || tag}
                 type="button"

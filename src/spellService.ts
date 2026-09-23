@@ -1,23 +1,22 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 const fs = require('node:fs');
 const path = require('node:path');
 const Typo = require('typo-js');
 
-function foldAccents(s) {
+function foldAccents(s: string) {
   return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
-function dictPath(...parts) {
+function dictPath(...parts: string[]) {
   return path.join(__dirname, 'dicts', ...parts);
 }
 
-function loadTypo(lang, affName, dicName) {
+function loadTypo(lang: string, affName: string, dicName: string) {
   const aff = fs.readFileSync(dictPath(affName), 'utf8');
   const dic = fs.readFileSync(dictPath(dicName), 'utf8');
   return new Typo(lang, aff, dic);
 }
 
-const state = {
+const state: { en: any; pt: any; ready: Promise<void> } = {
   en: null,
   pt: null,
   ready: Promise.resolve(),
@@ -29,20 +28,20 @@ function initSpellService() {
       state.en = loadTypo('en_US', 'en.aff', 'en.dic');
       console.log('[taknot] english dictionary ready');
     } catch (err) {
-      console.warn('[taknot] english dictionary failed', err?.message || err);
+      console.warn('[taknot] english dictionary failed', (err instanceof Error ? err.message : err));
     }
     try {
       // Affix expansion for pt-BR — several seconds on first load.
       state.pt = loadTypo('pt_BR', 'pt-BR.aff', 'pt-BR.dic');
       console.log('[taknot] pt-BR dictionary ready');
     } catch (err) {
-      console.warn('[taknot] pt-BR dictionary failed', err?.message || err);
+      console.warn('[taknot] pt-BR dictionary failed', (err instanceof Error ? err.message : err));
     }
   })();
   return state.ready;
 }
 
-function isSkippableToken(word) {
+function isSkippableToken(word: string) {
   if (!word || word.length < 2) return true;
   if (/^\d+$/.test(word)) return true;
   if (/[_/\\@#]/.test(word)) return true;
@@ -50,7 +49,7 @@ function isSkippableToken(word) {
   return false;
 }
 
-function dictAccepts(dict, word) {
+function dictAccepts(dict: any, word: string) {
   if (!dict) return false;
   if (dict.check(word)) return true;
   const lower = word.toLowerCase();
@@ -62,7 +61,7 @@ function dictAccepts(dict, word) {
   return false;
 }
 
-function isCorrect(word) {
+function isCorrect(word: string) {
   if (isSkippableToken(word)) return true;
   // Mixed-language notes: accept if either dictionary knows the word.
   if (dictAccepts(state.en, word)) return true;
@@ -70,20 +69,20 @@ function isCorrect(word) {
   return false;
 }
 
-function uniquePush(out, seen, s) {
+function uniquePush(out: string[], seen: Set<string>, s: string) {
   if (!s || seen.has(s)) return;
   seen.add(s);
   out.push(s);
 }
 
-function suggest(word, limit = 8) {
-  const seen = new Set();
-  const accent = [];
-  const enList = [];
-  const ptList = [];
+function suggest(word: string, limit = 8): string[] {
+  const seen = new Set<string>();
+  const accent: string[] = [];
+  const enList: string[] = [];
+  const ptList: string[] = [];
   const folded = foldAccents(word.toLowerCase());
 
-  const gather = (dict, bucket) => {
+  const gather = (dict: any, bucket: string[]) => {
     if (!dict) return;
     try {
       for (const s of dict.suggest(word) || []) bucket.push(s);
@@ -108,16 +107,16 @@ function suggest(word, limit = 8) {
     }
   }
 
-  const out = [];
+  const out: string[] = [];
   for (const s of accent) uniquePush(out, seen, s);
   for (const s of enList) uniquePush(out, seen, s);
   for (const s of ptList) uniquePush(out, seen, s);
   return out.slice(0, limit);
 }
 
-function checkWords(words) {
+function checkWords(words: string[]): string[] {
   const bad = [];
-  const seen = new Set();
+  const seen = new Set<string>();
   for (const w of words) {
     if (!w || seen.has(w)) continue;
     seen.add(w);

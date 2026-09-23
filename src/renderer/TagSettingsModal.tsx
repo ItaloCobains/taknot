@@ -1,11 +1,25 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { X } from 'lucide-react';
 import { TAG_SWATCHES } from './lib/prefs';
+import type { TaknotTag } from '../vite-env';
 
-const ICON = { size: 15, strokeWidth: 1.75 };
+const ICON = { size: 15, strokeWidth: 1.75 } as const;
+
+type TagEdit = Pick<TaknotTag, 'id' | 'name'> & { color?: string };
+
+type Props = {
+  tagEdit: TagEdit | null;
+  onChange: (next: TagEdit) => void;
+  onClose: () => void;
+  onSave: () => void;
+};
 
 /** Edit tag name + color swatches. */
-export default function TagSettingsModal({ tagEdit, onChange, onClose, onSave }) {
+export default function TagSettingsModal({
+  tagEdit,
+  onChange,
+  onClose,
+  onSave,
+}: Props) {
   if (!tagEdit) return null;
 
   return (

@@ -1,4 +1,12 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+type McpHttpState = {
+  running: boolean;
+  port: number | null;
+  url: string | null;
+  httpServer: import('node:http').Server | null;
+  vault: any;
+  version: string;
+};
+
 const http = require('node:http');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
@@ -9,7 +17,7 @@ const HOST = '127.0.0.1';
 const DEFAULT_PORT = 19841;
 const MAX_PORT_TRIES = 11;
 
-let state = {
+let state: McpHttpState = {
   running: false,
   port: null,
   url: null,
@@ -18,21 +26,21 @@ let state = {
   version: '0.0.0',
 };
 
-function ok(data) {
+function ok(data: unknown) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
   };
 }
 
-function fail(err) {
-  const message = err?.message || String(err);
+function fail(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
   return {
     content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
     isError: true,
   };
 }
 
-function createTaknotMcpServer(vault, version) {
+function createTaknotMcpServer(vault: any, version: string) {
   const server = new McpServer({
     name: 'taknot',
     version: String(version || '0.0.0'),
@@ -47,7 +55,7 @@ function createTaknotMcpServer(vault, version) {
       status: z.string().optional(),
       query: z.string().optional(),
     },
-    async (args) => {
+    async (args: any) => {
       try {
         await vault.ensureVault();
         return ok(await vault.listNotes(args));
@@ -61,7 +69,7 @@ function createTaknotMcpServer(vault, version) {
     'get_note',
     'Get one note by id (includes markdown body).',
     { id: z.string() },
-    async ({ id }) => {
+    async ({ id }: { id: string }) => {
       try {
         await vault.ensureVault();
         const note = await vault.getNote(id);
@@ -83,7 +91,7 @@ function createTaknotMcpServer(vault, version) {
       tags: z.array(z.string()).optional(),
       status: z.string().optional(),
     },
-    async (args) => {
+    async (args: any) => {
       try {
         await vault.ensureVault();
         const note = await vault.createNote({
@@ -122,7 +130,7 @@ function createTaknotMcpServer(vault, version) {
       status: z.string().optional(),
       pinned: z.boolean().optional(),
     },
-    async (args) => {
+    async (args: any) => {
       try {
         await vault.ensureVault();
         return ok(await vault.saveNote(args));
@@ -136,7 +144,7 @@ function createTaknotMcpServer(vault, version) {
     'delete_note',
     'Delete a note by id.',
     { id: z.string() },
-    async ({ id }) => {
+    async ({ id }: { id: string }) => {
       try {
         await vault.ensureVault();
         await vault.deleteNote(id);
@@ -151,7 +159,7 @@ function createTaknotMcpServer(vault, version) {
     'duplicate_note',
     'Duplicate a note by id.',
     { id: z.string() },
-    async ({ id }) => {
+    async ({ id }: { id: string }) => {
       try {
         await vault.ensureVault();
         return ok(await vault.duplicateNote(id));
@@ -178,7 +186,7 @@ function createTaknotMcpServer(vault, version) {
       name: z.string(),
       color: z.string().optional(),
     },
-    async (args) => {
+    async (args: any) => {
       try {
         await vault.ensureVault();
         return ok(await vault.saveTag(args));
@@ -192,7 +200,7 @@ function createTaknotMcpServer(vault, version) {
     'delete_tag',
     'Delete a tag by id (removes it from notes).',
     { id: z.string() },
-    async ({ id }) => {
+    async ({ id }: { id: string }) => {
       try {
         await vault.ensureVault();
         await vault.deleteTag(id);
@@ -219,7 +227,7 @@ function createTaknotMcpServer(vault, version) {
       name: z.string(),
       parentId: z.string().nullable().optional(),
     },
-    async ({ name, parentId }) => {
+    async ({ name, parentId }: { name: string; parentId?: string | null }) => {
       try {
         await vault.ensureVault();
         return ok(await vault.createNotebook(name, parentId ?? null));
@@ -233,7 +241,7 @@ function createTaknotMcpServer(vault, version) {
     'rename_notebook',
     'Rename a notebook.',
     { id: z.string(), name: z.string() },
-    async ({ id, name }) => {
+    async ({ id, name }: { id: string; name: string }) => {
       try {
         await vault.ensureVault();
         return ok(await vault.renameNotebook(id, name));
@@ -247,7 +255,7 @@ function createTaknotMcpServer(vault, version) {
     'set_notebook_icon',
     'Set notebook icon name (Lucide id used by the app).',
     { id: z.string(), icon: z.string() },
-    async ({ id, icon }) => {
+    async ({ id, icon }: { id: string; icon: string }) => {
       try {
         await vault.ensureVault();
         return ok(await vault.setNotebookIcon(id, icon));
@@ -264,7 +272,7 @@ function createTaknotMcpServer(vault, version) {
       id: z.string(),
       parentId: z.string().nullable(),
     },
-    async ({ id, parentId }) => {
+    async ({ id, parentId }: { id: string; parentId: string | null }) => {
       try {
         await vault.ensureVault();
         return ok(await vault.moveNotebook(id, parentId));
@@ -278,7 +286,7 @@ function createTaknotMcpServer(vault, version) {
     'delete_notebook',
     'Delete notebook. Notes move to Inbox. Cannot delete Inbox.',
     { id: z.string() },
-    async ({ id }) => {
+    async ({ id }: { id: string }) => {
       try {
         if (id === 'nb_inbox') return fail(new Error('Cannot delete Inbox'));
         await vault.ensureVault();
@@ -293,10 +301,10 @@ function createTaknotMcpServer(vault, version) {
   return server;
 }
 
-function listen(app, port) {
+function listen(app: any, port: number): Promise<import("node:http").Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
-    const onError = (err) => {
+    const onError = (err: Error) => {
       server.off('listening', onListening);
       reject(err);
     };
@@ -310,7 +318,7 @@ function listen(app, port) {
   });
 }
 
-function getMcpHttpStatus() {
+function getMcpHttpStatus(): { running: boolean; port: number | null; url: string | null; host: string } {
   return {
     running: state.running,
     port: state.port,
@@ -319,14 +327,14 @@ function getMcpHttpStatus() {
   };
 }
 
-async function stopMcpHttp() {
+async function stopMcpHttp(): Promise<void> {
   const httpServer = state.httpServer;
   state.httpServer = null;
   state.running = false;
   state.port = null;
   state.url = null;
   if (!httpServer) return;
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     httpServer.close(() => resolve());
   });
 }
@@ -335,7 +343,7 @@ async function stopMcpHttp() {
  * Start local Streamable HTTP MCP for Cursor / other clients.
  * @param {{ vault: object, version?: string, port?: number }} opts
  */
-async function startMcpHttp(opts = {}) {
+async function startMcpHttp(opts: { vault?: any; version?: string; port?: number } = {}) {
   if (state.running) {
     return {
       port: state.port,
@@ -355,7 +363,7 @@ async function startMcpHttp(opts = {}) {
 
   const app = createMcpExpressApp({ host: HOST });
 
-  app.post('/mcp', async (req, res) => {
+  app.post('/mcp', async (req: any, res: any) => {
     const server = createTaknotMcpServer(vault, version);
     try {
       const transport = new StreamableHTTPServerTransport({
@@ -379,7 +387,7 @@ async function startMcpHttp(opts = {}) {
     }
   });
 
-  app.get('/mcp', (_req, res) => {
+  app.get('/mcp', (_req: any, res: any) => {
     res.writeHead(405).end(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -389,7 +397,7 @@ async function startMcpHttp(opts = {}) {
     );
   });
 
-  app.delete('/mcp', (_req, res) => {
+  app.delete('/mcp', (_req: any, res: any) => {
     res.writeHead(405).end(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -399,11 +407,11 @@ async function startMcpHttp(opts = {}) {
     );
   });
 
-  app.get('/health', (_req, res) => {
+  app.get('/health', (_req: any, res: any) => {
     res.json({ ok: true, name: 'taknot-mcp' });
   });
 
-  let httpServer = null;
+  let httpServer: import("node:http").Server | null = null;
   let port = preferred;
   let lastErr = null;
   for (let i = 0; i < MAX_PORT_TRIES; i += 1) {
@@ -412,9 +420,9 @@ async function startMcpHttp(opts = {}) {
       httpServer = await listen(app, port);
       lastErr = null;
       break;
-    } catch (err) {
+    } catch (err: unknown) {
       lastErr = err;
-      if (err?.code !== 'EADDRINUSE') break;
+      if ((err as NodeJS.ErrnoException)?.code !== 'EADDRINUSE') break;
     }
   }
 
@@ -423,7 +431,7 @@ async function startMcpHttp(opts = {}) {
       '[taknot-mcp] failed to bind',
       HOST,
       preferred,
-      lastErr?.message || lastErr,
+      (lastErr instanceof Error ? lastErr.message : String(lastErr ?? "")),
     );
     state.running = false;
     state.port = null;
@@ -433,7 +441,7 @@ async function startMcpHttp(opts = {}) {
       url: null,
       stop: stopMcpHttp,
       running: false,
-      error: lastErr?.message || String(lastErr),
+      error: (lastErr instanceof Error ? lastErr.message : String(lastErr ?? "")),
     };
   }
 

@@ -1,11 +1,10 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { StateEffect, StateField, RangeSetBuilder } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
 
 const WORD_RE = /\p{L}+(?:['’]\p{L}+)?/gu;
 
 /** @type {StateEffect<Set<string>>} */
-export const setMisspelledEffect = StateEffect.define();
+export const setMisspelledEffect = StateEffect.define<Set<string>>();
 
 /** Words the user added via "Add to dictionary" (session + localStorage). */
 const CUSTOM_KEY = 'taknot.spell.custom';
@@ -23,7 +22,7 @@ function loadCustomWords() {
 
 let customWords = loadCustomWords();
 
-export function addCustomWord(word) {
+export function addCustomWord(word: string) {
   const w = String(word || '').toLowerCase();
   if (!w) return;
   customWords.add(w);
@@ -47,8 +46,8 @@ export const misspelledField = StateField.define({
 const spellMark = Decoration.mark({ class: 'cm-spell-error' });
 
 /** Ranges inside fenced code blocks (``` ... ```). */
-function codeFenceRanges(text) {
-  const ranges = [];
+function codeFenceRanges(text: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
   const re = /^```[\s\S]*?^```/gm;
   let m;
   while ((m = re.exec(text))) {
@@ -57,17 +56,17 @@ function codeFenceRanges(text) {
   return ranges;
 }
 
-function inRanges(pos, ranges) {
+function inRanges(pos: number, ranges: Array<[number, number]>) {
   for (const [a, b] of ranges) {
     if (pos >= a && pos < b) return true;
   }
   return false;
 }
 
-function collectWords(text) {
+function collectWords(text: string): string[] {
   const fences = codeFenceRanges(text);
-  const words = [];
-  const seen = new Set();
+  const words: string[] = [];
+  const seen = new Set<string>();
   WORD_RE.lastIndex = 0;
   let m;
   while ((m = WORD_RE.exec(text))) {
@@ -82,7 +81,7 @@ function collectWords(text) {
   return words;
 }
 
-function buildDecorations(state) {
+function buildDecorations(state: any) {
   const bad = state.field(misspelledField);
   if (!bad || bad.size === 0) return Decoration.none;
 
@@ -104,47 +103,47 @@ function buildDecorations(state) {
 
 // Recompute decorations whenever misspelled set changes.
 export const spellDecorationField = StateField.define({
-  create(state) {
+  create(state: any) {
     return buildDecorations(state);
   },
-  update(deco, tr) {
+  update(deco: any, tr: any) {
     if (
       tr.docChanged ||
-      tr.effects.some((e) => e.is(setMisspelledEffect))
+      tr.effects.some((e: any) => e.is(setMisspelledEffect))
     ) {
       return buildDecorations(tr.state);
     }
     return deco;
   },
-  provide: (f) => EditorView.decorations.from(f),
+  provide: (f: any) => EditorView.decorations.from(f),
 });
 
 function spellcheckWatcher() {
   return ViewPlugin.fromClass(
     class {
-      timer = null;
-      constructor(view) {
+      timer: ReturnType<typeof setTimeout> | null = null;
+      constructor(view: any) {
         this.queue(view);
       }
-      update(update) {
+      update(update: any) {
         if (update.docChanged) this.queue(update.view);
       }
       destroy() {
         if (this.timer) clearTimeout(this.timer);
       }
-      queue(view) {
+      queue(view: any) {
         if (this.timer) clearTimeout(this.timer);
         this.timer = setTimeout(() => {
           void this.run(view);
         }, 320);
       }
-      async run(view) {
+      async run(view: any) {
         const api = window.taknot;
         if (!api?.checkSpelling) return;
         const words = collectWords(view.state.doc.toString());
-        let bad = [];
+        let bad: string[] = [];
         try {
-          bad = await api.checkSpelling(words);
+          bad = (await api.checkSpelling(words)) as string[];
         } catch (err) {
           console.warn('[taknot] spell check failed', err);
           return;
@@ -161,7 +160,7 @@ function spellcheckWatcher() {
 }
 
 /** Word under absolute document position. */
-export function wordAt(state, pos) {
+export function wordAt(state: any, pos: number) {
   const line = state.doc.lineAt(pos);
   const text = line.text;
   const local = pos - line.from;

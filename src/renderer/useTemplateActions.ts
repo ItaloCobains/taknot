@@ -1,7 +1,32 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-/**
- * Empty-state templates: create note from template + custom template CRUD.
- */
+import type { Dispatch, SetStateAction } from 'react';
+import type {
+  NoteFilterState,
+  TaknotNote,
+  TaknotTemplate,
+} from '../vite-env';
+
+type TemplateEditor = {
+  id?: string;
+  name: string;
+  category: string;
+  body: string;
+} | null;
+
+type Args = {
+  note: TaknotNote | null;
+  allTemplates: TaknotTemplate[];
+  selectedTemplateId: string;
+  templateEditor: TemplateEditor;
+  filter: NoteFilterState;
+  selectNote: (id: string) => void;
+  openCreate: () => void;
+  refreshNotes: () => Promise<unknown>;
+  refreshMeta: () => Promise<unknown>;
+  setTemplateEditor: Dispatch<SetStateAction<TemplateEditor>>;
+  setSelectedTemplateId: Dispatch<SetStateAction<string>>;
+};
+
+/** Empty-state templates: create note from template + custom template CRUD. */
 export function useTemplateActions({
   note,
   allTemplates,
@@ -14,16 +39,16 @@ export function useTemplateActions({
   refreshMeta,
   setTemplateEditor,
   setSelectedTemplateId,
-}) {
+}: Args) {
   function handleNewClick() {
     if (!note) {
-      createFromTemplate();
+      void createFromTemplate();
       return;
     }
     openCreate();
   }
 
-  async function createFromTemplate(template) {
+  async function createFromTemplate(template?: TaknotTemplate) {
     const t =
       template ||
       allTemplates.find((item) => item.id === selectedTemplateId) ||
@@ -52,7 +77,7 @@ export function useTemplateActions({
     });
   }
 
-  function openEditTemplate(t) {
+  function openEditTemplate(t: TaknotTemplate | null | undefined) {
     if (!t || t.builtin) return;
     setTemplateEditor({
       id: t.id,
@@ -81,7 +106,7 @@ export function useTemplateActions({
     }
   }
 
-  async function removeTemplate(id) {
+  async function removeTemplate(id: string) {
     try {
       await window.taknot.deleteTemplate(id);
       await refreshMeta();

@@ -1,6 +1,12 @@
-// @ts-nocheck
+import type {
+  BrowserWindow as Bw,
+  HandlerDetails,
+  IpcMainInvokeEvent,
+  Session,
+} from 'electron';
+
 const { app, BrowserWindow, Menu, ipcMain, clipboard, shell, dialog } = require('electron');
-let liquidGlass = null;
+let liquidGlass: any = null;
 try {
   liquidGlass = require('electron-liquid-glass');
 } catch {
@@ -15,11 +21,11 @@ const { startMcpHttp, stopMcpHttp, getMcpHttpStatus } = require('./mcpHttp');
 
 
 /** Enable Chromium/macOS spellchecker for the note window (pt-BR + en-US when available). */
-function configureSpellChecker(ses) {
+function configureSpellChecker(ses: Session) {
   try {
     ses.setSpellCheckerEnabled(true);
-  } catch (err) {
-    console.warn('[taknot] setSpellCheckerEnabled failed', err?.message || err);
+  } catch (err: unknown) {
+    console.warn('[taknot] setSpellCheckerEnabled failed', err instanceof Error ? err.message : err);
     return;
   }
   // On darwin this is a no-op (OS spellchecker + auto language detect).
@@ -45,14 +51,14 @@ function configureSpellChecker(ses) {
       );
     }
     ses.setSpellCheckerLanguages(langs);
-  } catch (err) {
-    console.warn('[taknot] setSpellCheckerLanguages failed', err?.message || err);
+  } catch (err: unknown) {
+    console.warn('[taknot] setSpellCheckerLanguages failed', err instanceof Error ? err.message : err);
   }
 }
 
 /** Spelling suggestions / replace / add-to-dictionary. Skip when not a misspelling so renderer note/tag/notebook menus keep working. */
-function attachSpellcheckContextMenu(win) {
-  win.webContents.on('context-menu', (_event, params) => {
+function attachSpellcheckContextMenu(win: Bw) {
+  win.webContents.on('context-menu', (_event: Electron.Event, params: Electron.ContextMenuParams) => {
     const word = params.misspelledWord;
     const suggestions = params.dictionarySuggestions || [];
     if (!word && suggestions.length === 0) return;
@@ -86,9 +92,9 @@ function attachSpellcheckContextMenu(win) {
 /** Debounced fs.watch → renderer when MCP/other process mutates the vault. */
 function watchVault() {
   const root = vault.vaultRoot();
-  let timer = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const emit = () => {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) {
@@ -100,8 +106,8 @@ function watchVault() {
   try {
     fs.watch(root, { recursive: true }, emit);
     console.log('[taknot] watching vault', root);
-  } catch (err) {
-    console.warn('[taknot] vault watch failed', err?.message || err);
+  } catch (err: unknown) {
+    console.warn('[taknot] vault watch failed', err instanceof Error ? err.message : err);
   }
 }
 
@@ -110,7 +116,7 @@ if (require('electron-squirrel-startup')) {
 }
 
 
-function safePdfFileName(title) {
+function safePdfFileName(title: string | null | undefined) {
   const base = String(title || 'note')
     .replace(/[\/\\?%*:|"<>]/g, '-')
     .replace(/\s+/g, ' ')
@@ -119,7 +125,7 @@ function safePdfFileName(title) {
   return `${base || 'note'}.pdf`;
 }
 
-function escapeHtmlText(s) {
+function escapeHtmlText(s: string) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -127,7 +133,7 @@ function escapeHtmlText(s) {
     .replace(/"/g, '&quot;');
 }
 
-function buildPdfHtml(title, bodyHtml) {
+function buildPdfHtml(title: string, bodyHtml: string) {
   let katexHref = '';
   try {
     const katexCss = require.resolve('katex/dist/katex.min.css');
@@ -278,36 +284,16 @@ const createWindow = () => {
 app.whenReady().then(async () => {
   await vault.ensureVault();
 
-  ipcMain.handle('vault:listCustomTemplates', () => vault.listCustomTemplates());
-  ipcMain.handle('vault:saveTemplate', (_e, tpl) => vault.saveTemplate(tpl));
-  ipcMain.handle('vault:deleteTemplate', (_e, id) => vault.deleteTemplate(id));
-  ipcMain.handle('vault:listNotebooks', () => vault.listNotebooks());
-  ipcMain.handle('vault:listTags', () => vault.listTags());
-  ipcMain.handle('vault:saveTag', (_e, tag) => vault.saveTag(tag));
-  ipcMain.handle('vault:deleteTag', (_e, id) => vault.deleteTag(id));
-  ipcMain.handle('vault:listNotes', (_e, filter) => vault.listNotes(filter));
-  ipcMain.handle('vault:getWikiGraph', () => vault.getWikiGraph());
-  ipcMain.handle('vault:getNote', (_e, id) => vault.getNote(id));
-  ipcMain.handle('vault:saveNote', (_e, note) => vault.saveNote(note));
-  ipcMain.handle('vault:createNote', (_e, opts) => vault.createNote(opts));
-  ipcMain.handle('vault:createNotebook', (_e, name, parentId) =>
-    vault.createNotebook(name, parentId),
+  ipcMain.handle('vault:listCustomTemplates', () => vault.listCustomTemplates());  ipcMain.handle('vault:saveTemplate', (_e: IpcMainInvokeEvent, tpl: any) => vault.saveTemplate(tpl));  ipcMain.handle('vault:deleteTemplate', (_e: IpcMainInvokeEvent, id: string) => vault.deleteTemplate(id));  ipcMain.handle('vault:listNotebooks', () => vault.listNotebooks());  ipcMain.handle('vault:listTags', () => vault.listTags());  ipcMain.handle('vault:saveTag', (_e: IpcMainInvokeEvent, tag: any) => vault.saveTag(tag));  ipcMain.handle('vault:deleteTag', (_e: IpcMainInvokeEvent, id: string) => vault.deleteTag(id));  ipcMain.handle('vault:listNotes', (_e: IpcMainInvokeEvent, filter: any) => vault.listNotes(filter));  ipcMain.handle('vault:getWikiGraph', () => vault.getWikiGraph());  ipcMain.handle('vault:getNote', (_e: IpcMainInvokeEvent, id: string) => vault.getNote(id));  ipcMain.handle('vault:saveNote', (_e: IpcMainInvokeEvent, note: any) => vault.saveNote(note));  ipcMain.handle('vault:createNote', (_e: IpcMainInvokeEvent, opts: any) => vault.createNote(opts));  ipcMain.handle('vault:createNotebook', (_e: IpcMainInvokeEvent, name: string, parentId: string | null) =>    vault.createNotebook(name, parentId),
   );
-  ipcMain.handle('vault:renameNotebook', (_e, id, name) =>
-    vault.renameNotebook(id, name),
+  ipcMain.handle('vault:renameNotebook', (_e: IpcMainInvokeEvent, id: string, name: string) =>    vault.renameNotebook(id, name),
   );
-  ipcMain.handle('vault:setNotebookIcon', (_e, id, icon) =>
-    vault.setNotebookIcon(id, icon),
+  ipcMain.handle('vault:setNotebookIcon', (_e: IpcMainInvokeEvent, id: string, icon: string) =>    vault.setNotebookIcon(id, icon),
   );
-  ipcMain.handle('vault:moveNotebook', (_e, id, parentId) =>
-    vault.moveNotebook(id, parentId),
+  ipcMain.handle('vault:moveNotebook', (_e: IpcMainInvokeEvent, id: string, parentId: string | null) =>    vault.moveNotebook(id, parentId),
   );
-  ipcMain.handle('vault:deleteNotebook', (_e, id) => vault.deleteNotebook(id));
-  ipcMain.handle('vault:duplicateNote', (_e, id) => vault.duplicateNote(id));
-  ipcMain.handle('vault:deleteNote', (_e, id) => vault.deleteNote(id));
-
-  ipcMain.handle('note:exportPdf', async (event, payload) => {
-    const title = String(payload?.title || 'note');
+  ipcMain.handle('vault:deleteNotebook', (_e: IpcMainInvokeEvent, id: string) => vault.deleteNotebook(id));  ipcMain.handle('vault:duplicateNote', (_e: IpcMainInvokeEvent, id: string) => vault.duplicateNote(id));  ipcMain.handle('vault:deleteNote', (_e: IpcMainInvokeEvent, id: string) => vault.deleteNote(id));
+  ipcMain.handle('note:exportPdf', async (event: IpcMainInvokeEvent, payload: any) => {    const title = String(payload?.title || 'note');
     const html = String(payload?.html || '');
     const parent = BrowserWindow.fromWebContents(event.sender);
     const { canceled, filePath } = await dialog.showSaveDialog(parent || undefined, {
@@ -348,7 +334,7 @@ app.whenReady().then(async () => {
       return { ok: true, filePath };
     } catch (err) {
       console.error('[taknot] export PDF failed', err);
-      return { ok: false, error: String(err?.message || err) };
+      return { ok: false, error: String((err instanceof Error ? err.message : err)) };
     } finally {
       if (!pdfWin.isDestroyed()) pdfWin.destroy();
       try {
@@ -359,33 +345,27 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('clipboard:writeText', (_e, text) => {
-    clipboard.writeText(String(text ?? ''));
+  ipcMain.handle('clipboard:writeText', (_e: IpcMainInvokeEvent, text: string) => {    clipboard.writeText(String(text ?? ''));
     return true;
   });
-  ipcMain.handle('shell:openExternal', async (_e, url) => {
-    const href = String(url || '');
+  ipcMain.handle('shell:openExternal', async (_e: IpcMainInvokeEvent, url: string) => {    const href = String(url || '');
     if (!/^https?:\/\//i.test(href)) return false;
     await shell.openExternal(href);
     return true;
   });
 
-  ipcMain.handle('window:toggleMaximize', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
+  ipcMain.handle('window:toggleMaximize', (event: IpcMainInvokeEvent) => {    const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return false;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
     return win.isMaximized();
   });
 
-  ipcMain.handle('window:isMaximized', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
+  ipcMain.handle('window:isMaximized', (event: IpcMainInvokeEvent) => {    const win = BrowserWindow.fromWebContents(event.sender);
     return win ? win.isMaximized() : false;
   });
 
-  ipcMain.handle('app:getVersion', () => app.getVersion());
-  ipcMain.handle('mcp:getInfo', () => {
-    const status = getMcpHttpStatus();
+  ipcMain.handle('app:getVersion', () => app.getVersion());  ipcMain.handle('mcp:getInfo', () => {    const status = getMcpHttpStatus();
     return {
       vault: vault.vaultRoot(),
       url: status.url,
@@ -394,25 +374,22 @@ app.whenReady().then(async () => {
       startedByApp: true,
     };
   });
-  ipcMain.handle('app:checkForUpdates', async () => {
-    await checkForUpdates({ manual: true });
+  ipcMain.handle('app:checkForUpdates', async () => {    await checkForUpdates({ manual: true });
     return true;
   });
 
-  ipcMain.handle('spell:checkWords', async (_e, words) => {
-    await spellService.whenReady();
+  ipcMain.handle('spell:checkWords', async (_e: IpcMainInvokeEvent, words: string[]) => {    await spellService.whenReady();
     return spellService.checkWords(Array.isArray(words) ? words : []);
   });
-  ipcMain.handle('spell:suggest', async (_e, word) => {
-    await spellService.whenReady();
+  ipcMain.handle('spell:suggest', async (_e: IpcMainInvokeEvent, word: string) => {    await spellService.whenReady();
     return spellService.suggest(String(word || ''));
   });
 
   spellService.initSpellService();
   try {
     await startMcpHttp({ vault, version: app.getVersion() });
-  } catch (err) {
-    console.warn('[taknot] MCP HTTP failed to start', err?.message || err);
+  } catch (err: unknown) {
+    console.warn('[taknot] MCP HTTP failed to start', err instanceof Error ? err.message : err);
   }
   createWindow();
   watchVault();
@@ -426,8 +403,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  stopMcpHttp().catch((err) => {
-    console.warn('[taknot] MCP HTTP stop failed', err?.message || err);
+  stopMcpHttp().catch((err: unknown) => {
+    console.warn('[taknot] MCP HTTP stop failed', (err instanceof Error ? err.message : err));
   });
 });
 

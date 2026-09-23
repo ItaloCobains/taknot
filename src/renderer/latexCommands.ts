@@ -1,7 +1,14 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+export type LatexCommand = {
+  id: string;
+  label: string;
+  hint: string;
+  insert: string;
+  cursor: number;
+};
+
 /** Common KaTeX / TeX commands for autocomplete inside $...$ / $$...$$. */
 
-export const LATEX_COMMANDS = [
+export const LATEX_COMMANDS: LatexCommand[] = [
   { id: 'frac', label: '\\frac', hint: '{a}{b}', insert: '\\frac{}{}', cursor: 6 },
   { id: 'sqrt', label: '\\sqrt', hint: '{x}', insert: '\\sqrt{}', cursor: 6 },
   { id: 'sum', label: '\\sum', hint: '∑', insert: '\\sum_{i=1}^{n}', cursor: 6 },
@@ -89,7 +96,7 @@ export const LATEX_COMMANDS = [
   { id: 'det', label: '\\det', hint: 'det', insert: '\\det', cursor: 5 },
 ];
 
-export function filterLatexCommands(query) {
+export function filterLatexCommands(query: string | null | undefined) {
   const q = (query || '').trim().toLowerCase();
   if (!q) return LATEX_COMMANDS.slice(0, 12);
   return LATEX_COMMANDS.filter(
@@ -101,7 +108,7 @@ export function filterLatexCommands(query) {
 }
 
 /** True when caret is inside $...$ or $$...$$. */
-export function inMathContext(body, caret) {
+export function inMathContext(body: string | null | undefined, caret: number) {
   let i = 0;
   let inDisplay = false;
   let inInline = false;
@@ -128,7 +135,7 @@ export function inMathContext(body, caret) {
  * Active `\\command` being typed inside math.
  * Returns { start, end, query } or null.
  */
-export function detectLatex(body, caret) {
+export function detectLatex(body: string | null | undefined, caret: number) {
   if (!inMathContext(body, caret)) return null;
   const before = String(body || '').slice(0, caret);
   const match = before.match(/\\([a-zA-Z]*)$/);

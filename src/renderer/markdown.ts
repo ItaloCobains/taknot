@@ -1,4 +1,3 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 
@@ -10,7 +9,7 @@ marked.use(
 );
 
 /** Fix common link/image markdown mistakes before rendering. */
-export function normalizeMarkdown(source) {
+export function normalizeMarkdown(source: string | null | undefined): string {
   let text = source || '';
   // ![https://...](url) or ![https://...]() → ![](https://...)
   text = text.replace(
@@ -28,7 +27,7 @@ export function normalizeMarkdown(source) {
 }
 
 /** Make preview checkboxes interactive and indexed. */
-export function enablePreviewTasks(html) {
+export function enablePreviewTasks(html: string | null | undefined): string {
   let i = 0;
   return String(html || '').replace(
     /<input([^>]*?)type="checkbox"([^>]*)>/gi,
@@ -40,7 +39,7 @@ export function enablePreviewTasks(html) {
   );
 }
 
-function escapeHtml(s) {
+function escapeHtml(s: string): string {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -49,7 +48,9 @@ function escapeHtml(s) {
 }
 
 
-const GITHUB_ALERTS = {
+type AlertKind = 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION';
+
+const GITHUB_ALERTS: Record<AlertKind, { label: string; cls: string }> = {
   NOTE: { label: 'Note', cls: 'note' },
   TIP: { label: 'Tip', cls: 'tip' },
   IMPORTANT: { label: 'Important', cls: 'important' },
@@ -57,7 +58,7 @@ const GITHUB_ALERTS = {
   CAUTION: { label: 'Caution', cls: 'caution' },
 };
 
-const ALERT_ICONS = {
+const ALERT_ICONS: Record<AlertKind, string> = {
   NOTE: '<svg class="markdown-alert-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-3.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM7 7.75A.75.75 0 0 1 7.75 7h.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-.75.75h-.5a.75.75 0 0 1-.75-.75v-3.5Z"/></svg>',
   TIP: '<svg class="markdown-alert-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.193.228.378.446.536.696.15.237.263.493.263.797v.75h2v-.75c0-.604.222-.997.493-1.39.273-.394.585-.752.84-1.053C10.37 6.027 10.5 5.55 10.5 5.25c0-1.41-.91-2.75-2.5-2.75Zm-1 10.25a1 1 0 1 1 2 0v.25a1 1 0 1 1-2 0v-.25Z"/></svg>',
   IMPORTANT: '<svg class="markdown-alert-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>',
@@ -66,11 +67,11 @@ const ALERT_ICONS = {
 };
 
 /** Turn GitHub-style `> [!NOTE]` blockquotes into colored alert callouts. */
-export function enableGitHubAlerts(html) {
+export function enableGitHubAlerts(html: string | null | undefined): string {
   return String(html || '').replace(
     /<blockquote>\s*<p>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\n<]*)([\s\S]*?)<\/blockquote>/gi,
     (_full, typeRaw, sameLineRest, after) => {
-      const type = String(typeRaw).toUpperCase();
+      const type = String(typeRaw).toUpperCase() as AlertKind;
       const meta = GITHUB_ALERTS[type];
       if (!meta) return _full;
 
@@ -108,7 +109,7 @@ export function enableGitHubAlerts(html) {
 }
 
 /** Turn [[Note Title]] into clickable wiki links in preview HTML. */
-export function enableWikiLinks(html) {
+export function enableWikiLinks(html: string | null | undefined): string {
   return String(html || '').replace(/\[\[([^\]\n]+?)\]\]/g, (_m, raw) => {
     const title = String(raw).trim();
     if (!title) return _m;
@@ -118,7 +119,7 @@ export function enableWikiLinks(html) {
 }
 
 /** Toggle the Nth markdown task `- [ ]` / `- [x]`. */
-export function toggleTaskAt(body, index) {
+export function toggleTaskAt(body: string | null | undefined, index: number): string {
   let i = 0;
   return String(body || '').replace(
     /^(\s*[-*+]\s+)\[([ xX])\]/gm,
@@ -134,8 +135,11 @@ export function toggleTaskAt(body, index) {
  * Render note markdown → HTML (KaTeX math, tasks, wiki-links).
  * Supports `$inline$`, `$$display$$`, and non-standard `$x$` without spaces.
  */
-export function renderMarkdown(source, { wiki = true, tasks = true } = {}) {
-  let html = marked.parse(normalizeMarkdown(source || ''), { async: false });
+export function renderMarkdown(
+  source: string | null | undefined,
+  { wiki = true, tasks = true }: { wiki?: boolean; tasks?: boolean } = {},
+): string {
+  let html = marked.parse(normalizeMarkdown(source || ''), { async: false }) as string;
   html = enableGitHubAlerts(html);
   if (tasks) html = enablePreviewTasks(html);
   if (wiki) html = enableWikiLinks(html);

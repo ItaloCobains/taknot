@@ -1,9 +1,21 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-/** @typedef {{ key: string, mod?: boolean, shift?: boolean, alt?: boolean }} HotkeyBinding */
+export type HotkeyBinding = {
+  key: string;
+  mod?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+};
+
+export type HotkeyDef = {
+  label: string;
+  binding: HotkeyBinding;
+};
+
+export type HotkeyId = keyof typeof HOTKEY_DEFS;
+
+export type HotkeyMap = Record<HotkeyId, HotkeyBinding>;
 
 export const HOTKEYS_STORAGE_KEY = 'taknot.hotkeys';
 
-/** @type {Record<string, { label: string, binding: HotkeyBinding }>} */
 export const HOTKEY_DEFS = {
   newNote: {
     label: 'New note',
@@ -81,11 +93,14 @@ export const HOTKEY_DEFS = {
     label: 'Status: Dropped',
     binding: { key: '4', mod: true },
   },
-};
+} as const satisfies Record<string, HotkeyDef>;
 
-export const HOTKEY_ORDER = Object.keys(HOTKEY_DEFS);
+export const HOTKEY_ORDER = Object.keys(HOTKEY_DEFS) as HotkeyId[];
 
-function normalizeBinding(raw, fallback) {
+function normalizeBinding(
+  raw: Partial<HotkeyBinding> | null | undefined,
+  fallback: HotkeyBinding,
+): HotkeyBinding {
   if (!raw || typeof raw !== 'object') return { ...fallback };
   const key = String(raw.key || fallback.key);
   return {
@@ -96,16 +111,15 @@ function normalizeBinding(raw, fallback) {
   };
 }
 
-/** @returns {Record<string, HotkeyBinding>} */
-export function loadHotkeys() {
-  const out = {};
+export function loadHotkeys(): HotkeyMap {
+  const out = {} as HotkeyMap;
   for (const id of HOTKEY_ORDER) {
     out[id] = { ...HOTKEY_DEFS[id].binding };
   }
   try {
     const raw = localStorage.getItem(HOTKEYS_STORAGE_KEY);
     if (!raw) return out;
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Record<string, Partial<HotkeyBinding>>;
     if (!parsed || typeof parsed !== 'object') return out;
     for (const id of HOTKEY_ORDER) {
       if (parsed[id]) {
@@ -118,9 +132,8 @@ export function loadHotkeys() {
   return out;
 }
 
-/** @param {Record<string, HotkeyBinding>} map */
-export function saveHotkeys(map) {
-  const payload = {};
+export function saveHotkeys(map: Partial<HotkeyMap>): HotkeyMap {
+  const payload = {} as HotkeyMap;
   for (const id of HOTKEY_ORDER) {
     payload[id] = normalizeBinding(map[id], HOTKEY_DEFS[id].binding);
   }
@@ -129,39 +142,42 @@ export function saveHotkeys(map) {
   return payload;
 }
 
-export function resetHotkeys() {
+export function resetHotkeys(): HotkeyMap {
   localStorage.removeItem(HOTKEYS_STORAGE_KEY);
   window.dispatchEvent(new CustomEvent('taknot:hotkeys-changed'));
   return loadHotkeys();
 }
 
-export function isMacPlatform() {
+export function isMacPlatform(): boolean {
   return (
     typeof navigator !== 'undefined' &&
     /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
   );
 }
 
-function displayKey(key) {
-  const map = {
-    ArrowLeft: '←',
-    ArrowRight: '→',
-    ArrowUp: '↑',
-    ArrowDown: '↓',
-    Escape: 'Esc',
-    ' ': 'Space',
-    Enter: '⏎',
-    Backspace: '⌫',
-  };
-  if (map[key]) return map[key];
+const KEY_DISPLAY: Record<string, string> = {
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  Escape: 'Esc',
+  ' ': 'Space',
+  Enter: '⏎',
+  Backspace: '⌫',
+};
+
+function displayKey(key: string): string {
+  if (KEY_DISPLAY[key]) return KEY_DISPLAY[key];
   if (key.length === 1) return key.toUpperCase();
   return key;
 }
 
-/** @param {HotkeyBinding} binding */
-export function formatHotkey(binding, mac = isMacPlatform()) {
+export function formatHotkey(
+  binding: HotkeyBinding | null | undefined,
+  mac = isMacPlatform(),
+): string {
   if (!binding?.key) return '—';
-  const parts = [];
+  const parts: string[] = [];
   if (binding.mod) parts.push(mac ? '⌘' : 'Ctrl');
   if (binding.alt) parts.push(mac ? '⌥' : 'Alt');
   if (binding.shift) parts.push(mac ? '⇧' : 'Shift');
@@ -169,11 +185,10 @@ export function formatHotkey(binding, mac = isMacPlatform()) {
   return parts.join(mac ? '' : '+');
 }
 
-/**
- * @param {KeyboardEvent} e
- * @param {HotkeyBinding} binding
- */
-export function eventMatchesHotkey(e, binding) {
+export function eventMatchesHotkey(
+  e: KeyboardEvent,
+  binding: HotkeyBinding | null | undefined,
+): boolean {
   if (!binding?.key) return false;
   const mod = e.metaKey || e.ctrlKey;
   if (Boolean(binding.mod) !== mod) return false;
@@ -190,10 +205,8 @@ export function eventMatchesHotkey(e, binding) {
   return e.key.toLowerCase() === want.toLowerCase();
 }
 
-/** Build a binding from a keydown event (for recording). */
-export function bindingFromEvent(e) {
+export function bindingFromEvent(e: KeyboardEvent): HotkeyBinding | null {
   const mod = e.metaKey || e.ctrlKey;
-  // Require at least a non-modifier key
   if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return null;
   return {
     key: e.key.length === 1 ? e.key.toLowerCase() : e.key,
@@ -203,8 +216,11 @@ export function bindingFromEvent(e) {
   };
 }
 
-/** Find which action (if any) a binding conflicts with. */
-export function findHotkeyConflict(map, candidateId, candidate) {
+export function findHotkeyConflict(
+  map: HotkeyMap,
+  candidateId: HotkeyId,
+  candidate: HotkeyBinding,
+): HotkeyId | null {
   for (const id of HOTKEY_ORDER) {
     if (id === candidateId) continue;
     const other = map[id];

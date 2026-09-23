@@ -1,5 +1,4 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   HOTKEY_DEFS,
   HOTKEY_ORDER,
@@ -10,19 +9,20 @@ import {
   resetHotkeys,
   saveHotkeys,
 } from './hotkeys';
+import type { HotkeyId, HotkeyMap } from './hotkeys';
 
 /**
  * Settings block: list + click-to-record bindings.
  * @param {{ hotkeys: Record<string, import('./hotkeys.js').HotkeyBinding>, onChange: (next: Record<string, import('./hotkeys.js').HotkeyBinding>) => void }} props
  */
-export default function HotkeySettings({ hotkeys, onChange }) {
-  const [recordingId, setRecordingId] = useState(null);
-  const [conflict, setConflict] = useState(null);
+export default function HotkeySettings({ hotkeys, onChange }: { hotkeys: HotkeyMap; onChange: (next: HotkeyMap) => void }) {
+  const [recordingId, setRecordingId] = useState<HotkeyId | null>(null);
+  const [conflict, setConflict] = useState<{ id: HotkeyId; with: HotkeyId } | null>(null);
 
   useEffect(() => {
     if (!recordingId) return undefined;
 
-    function onKeyDown(e) {
+    function onKeyDown(e: KeyboardEvent) {
       e.preventDefault();
       e.stopPropagation();
       if (e.key === 'Escape') {
@@ -32,12 +32,12 @@ export default function HotkeySettings({ hotkeys, onChange }) {
       }
       const next = bindingFromEvent(e);
       if (!next) return;
-      const clash = findHotkeyConflict(hotkeys, recordingId, next);
+      const clash = findHotkeyConflict(hotkeys, recordingId!, next);
       if (clash) {
-        setConflict({ id: recordingId, with: clash });
+        setConflict({ id: recordingId!, with: clash });
         return;
       }
-      const map = { ...hotkeys, [recordingId]: next };
+      const map = { ...hotkeys, [recordingId!]: next };
       saveHotkeys(map);
       onChange(map);
       setRecordingId(null);
@@ -102,8 +102,8 @@ export default function HotkeySettings({ hotkeys, onChange }) {
   );
 }
 
-export function useHotkeysState() {
-  const [hotkeys, setHotkeys] = useState(loadHotkeys);
+export function useHotkeysState(): [HotkeyMap, Dispatch<SetStateAction<HotkeyMap>>] {
+  const [hotkeys, setHotkeys] = useState<HotkeyMap>(loadHotkeys);
   useEffect(() => {
     const sync = () => setHotkeys(loadHotkeys());
     window.addEventListener('taknot:hotkeys-changed', sync);
@@ -115,3 +115,4 @@ export function useHotkeysState() {
   }, []);
   return [hotkeys, setHotkeys];
 }
+

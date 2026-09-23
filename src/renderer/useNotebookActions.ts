@@ -1,8 +1,42 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-/**
- * Notebook create/rename/move/icon/delete + context-menu openers.
- * App keeps the UI state; this returns the handlers.
- */
+import type { Dispatch, MouseEvent, SetStateAction } from 'react';
+import type { NoteFilterState, TaknotNotebook } from '../vite-env';
+
+type NbMenu = {
+  id: string;
+  name: string;
+  icon: string;
+  x: number;
+  y: number;
+} | null;
+
+type Picker = { x: number; y: number; id?: string } | null;
+
+type Args = {
+  notebookDraft: string;
+  addingUnderId: string | null;
+  nbMenu: NbMenu;
+  iconPicker: Picker;
+  movePicker: Picker;
+  renamingNotebookId: string | null;
+  renameDraft: string;
+  filter: NoteFilterState;
+  setNotebookDraft: Dispatch<SetStateAction<string>>;
+  setAddingNotebook: Dispatch<SetStateAction<boolean>>;
+  setAddingUnderId: Dispatch<SetStateAction<string | null>>;
+  setFilter: Dispatch<SetStateAction<NoteFilterState>>;
+  setNbMenu: Dispatch<SetStateAction<NbMenu>>;
+  setTagMenu: Dispatch<SetStateAction<any>>;
+  setIconPicker: Dispatch<SetStateAction<any>>;
+  setMovePicker: Dispatch<SetStateAction<any>>;
+  setNotebookDetail: Dispatch<SetStateAction<any>>;
+  setRenamingNotebookId: Dispatch<SetStateAction<string | null>>;
+  setRenameDraft: Dispatch<SetStateAction<string>>;
+  setNotebooks: Dispatch<SetStateAction<TaknotNotebook[]>>;
+  refreshMeta: () => Promise<void>;
+  refreshNotes: () => Promise<unknown>;
+};
+
+/** Notebook create/rename/move/icon/delete + context-menu openers. */
 export function useNotebookActions({
   notebookDraft,
   addingUnderId,
@@ -26,7 +60,8 @@ export function useNotebookActions({
   setNotebooks,
   refreshMeta,
   refreshNotes,
-}) {
+}: Args) {
+
   async function handleCreateNotebook() {
     const name = notebookDraft.trim();
     if (!name) return;
@@ -42,7 +77,7 @@ export function useNotebookActions({
     }
   }
 
-  function openNotebookMenu(e, nb) {
+  function openNotebookMenu(e: MouseEvent, nb: TaknotNotebook) {
     e.preventDefault();
     e.stopPropagation();
     setTagMenu(null);
@@ -114,24 +149,24 @@ export function useNotebookActions({
     setNbMenu(null);
   }
 
-  async function pickNotebookIcon(icon) {
+  async function pickNotebookIcon(icon: string) {
     if (!iconPicker) return;
     const { id } = iconPicker;
     setIconPicker(null);
     try {
-      await window.taknot.setNotebookIcon(id, icon);
+      await window.taknot.setNotebookIcon(id!, icon);
       await refreshMeta();
     } catch (err) {
       console.error(err);
     }
   }
 
-  async function pickMoveParent(parentId) {
+  async function pickMoveParent(parentId: string | null) {
     if (!movePicker) return;
     const { id } = movePicker;
     setMovePicker(null);
     try {
-      await window.taknot.moveNotebook(id, parentId);
+      await window.taknot.moveNotebook(id!, parentId);
       await refreshMeta();
     } catch (err) {
       console.error(err);
@@ -154,7 +189,7 @@ export function useNotebookActions({
     setRenamingNotebookId(null);
   }
 
-  async function handleDeleteNotebook(id) {
+  async function handleDeleteNotebook(id: string) {
     if (!id || id === 'nb_inbox') {
       setNbMenu(null);
       return;

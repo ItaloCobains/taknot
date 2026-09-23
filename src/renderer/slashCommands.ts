@@ -1,6 +1,14 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+export type SlashCommand = {
+  id: string;
+  label: string;
+  hint: string;
+  keywords: string[];
+  insert: string;
+  cursor: number;
+};
+
 /** Slash-menu markdown snippets. `insert` replaces the `/query`; `cursor` is offset into insert. */
-export const SLASH_COMMANDS = [
+export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'h1',
     label: 'Heading 1',
@@ -203,7 +211,7 @@ export const SLASH_COMMANDS = [
   },
 ];
 
-export function filterSlashCommands(query) {
+export function filterSlashCommands(query: string | null | undefined) {
   const q = (query || '').trim().toLowerCase();
   if (!q) return SLASH_COMMANDS;
   return SLASH_COMMANDS.filter(
@@ -215,7 +223,7 @@ export function filterSlashCommands(query) {
 }
 
 /** Find active `/query` before caret. `/` at line start or after space/tab. */
-export function detectSlash(body, caret) {
+export function detectSlash(body: string, caret: number) {
   const before = body.slice(0, caret);
   const match = before.match(/(^|[\n \t])\/([^\n]*)$/);
   if (!match) return null;

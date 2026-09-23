@@ -23,6 +23,27 @@ export type TaknotNotebook = {
   children?: TaknotNotebook[];
 };
 
+export type ContextMenuPos = {
+  x: number;
+  y: number;
+};
+
+export type TagMenuState = ContextMenuPos & {
+  tag: TaknotTag;
+};
+
+export type NotebookMenuState = ContextMenuPos & {
+  notebook: TaknotNotebook;
+};
+
+export type NoteFilterState =
+  | { type: 'all' }
+  | { type: 'notebook'; id: string }
+  | { type: 'tag'; id: string; name?: string }
+  | { type: 'status'; id: string }
+  | { type: 'templates' }
+  | { type: string; id?: string; name?: string };
+
 export type TaknotNote = {
   id: string;
   title?: string;
@@ -31,6 +52,7 @@ export type TaknotNote = {
   tags?: string[];
   status?: string;
   pinned?: boolean;
+  createdAt?: string;
   updatedAt?: string;
 };
 
@@ -54,7 +76,10 @@ export type TaknotApi = {
   saveTag: (tag: Partial<TaknotTag> & { name: string }) => Promise<TaknotTag>;
   deleteTag: (id: string) => Promise<void>;
   listNotes: (filter?: TaknotNoteFilter) => Promise<TaknotNote[]>;
-  getWikiGraph: () => Promise<unknown>;
+  getWikiGraph: () => Promise<{
+    nodes: Array<{ id: string; title?: string; status?: string }>;
+    edges: Array<{ source: string; target: string }>;
+  }>;
   getNote: (id: string) => Promise<TaknotNote>;
   saveNote: (note: Record<string, unknown>) => Promise<TaknotNote>;
   createNote: (opts: Record<string, unknown>) => Promise<TaknotNote>;
@@ -66,7 +91,7 @@ export type TaknotApi = {
   duplicateNote: (id: string) => Promise<TaknotNote>;
   deleteNote: (id: string) => Promise<void>;
   writeClipboard: (text: string) => Promise<void>;
-  exportNotePdf: (payload: unknown) => Promise<unknown>;
+  exportNotePdf: (payload: unknown) => Promise<{ ok?: boolean; canceled?: boolean; path?: string; error?: string }>;
   openExternal: (url: string) => Promise<void>;
   toggleMaximize: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
@@ -76,13 +101,17 @@ export type TaknotApi = {
   getVersion: () => Promise<string>;
   getMcpInfo: () => Promise<TaknotMcpInfo>;
   checkForUpdates: () => Promise<unknown>;
-  checkSpelling: (words: string[]) => Promise<unknown>;
+  checkSpelling: (words: string[]) => Promise<string[]>;
   suggestSpelling: (word: string) => Promise<string[]>;
   onVaultChanged: (cb: () => void) => () => void;
 };
 
 declare global {
   interface Window {
-    taknot?: TaknotApi;
+    taknot: TaknotApi;
   }
+
+  /** Injected by @electron-forge/plugin-vite at build time. */
+  const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+  const MAIN_WINDOW_VITE_NAME: string;
 }

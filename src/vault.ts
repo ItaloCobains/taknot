@@ -1,4 +1,77 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+type VaultTag = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+type VaultNoteMeta = {
+  id: string;
+  title: string;
+  notebookId: string | null;
+  tags: string[];
+  status: string;
+  pinned?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type VaultNotebook = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  icon?: string;
+};
+
+type VaultTemplate = {
+  id: string;
+  name: string;
+  category: string;
+  body: string;
+  builtin?: boolean;
+};
+
+type VaultMeta = {
+  notebooks: VaultNotebook[];
+  tags: VaultTag[];
+  notes: VaultNoteMeta[];
+  templates: VaultTemplate[];
+};
+
+type NoteFilter = {
+  notebookId?: string;
+  tag?: string;
+  status?: string;
+  query?: string;
+};
+
+type NoteInput = Partial<VaultNoteMeta> & {
+  id?: string;
+  body?: string;
+  title?: string;
+};
+
+type CreateNoteOpts = {
+  notebookId?: string | null;
+  title?: string;
+  body?: string;
+  tags?: string[];
+  status?: string;
+  templateId?: string;
+};
+
+type TagInput = {
+  id?: string;
+  name: string;
+  color?: string;
+};
+
+type TemplateInput = {
+  id?: string;
+  name?: string;
+  category?: string;
+  body?: string;
+};
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
@@ -40,7 +113,7 @@ function metaPath() {
   return path.join(vaultRoot(), 'meta.json');
 }
 
-function notePath(id) {
+function notePath(id: string) {
   return path.join(vaultRoot(), 'notes', `${id}.md`);
 }
 
@@ -50,12 +123,12 @@ function now() {
 
 const DEFAULT_TAG_COLOR = '#8b93a7';
 
-function ensureMetaTemplates(meta) {
+function ensureMetaTemplates(meta: VaultMeta): VaultMeta {
   if (!Array.isArray(meta.templates)) meta.templates = []
   return meta
 }
 
-function ensureMetaTags(meta) {
+function ensureMetaTags(meta: VaultMeta): VaultMeta {
   if (!Array.isArray(meta.tags)) meta.tags = [];
   const byName = new Map(meta.tags.map((t) => [t.name, t]));
   for (const note of meta.notes) {
@@ -74,7 +147,7 @@ function ensureMetaTags(meta) {
   return meta;
 }
 
-async function readMeta() {
+async function readMeta(): Promise<VaultMeta> {
   const raw = await fs.readFile(metaPath(), 'utf8');
   const meta = JSON.parse(raw);
   const before = meta.tags?.length ?? -1;
@@ -86,11 +159,11 @@ async function readMeta() {
   return meta;
 }
 
-async function writeMeta(meta) {
+async function writeMeta(meta: VaultMeta): Promise<void> {
   await fs.writeFile(metaPath(), JSON.stringify(meta, null, 2), 'utf8');
 }
 
-async function ensureVault() {
+async function ensureVault(): Promise<void> {
   const root = vaultRoot();
   const notesDir = path.join(root, 'notes');
   await fs.mkdir(notesDir, { recursive: true });
@@ -100,7 +173,7 @@ async function ensureVault() {
   } catch {
     const createdAt = now();
     const noteId = 'note_welcome';
-    const meta = {
+    const meta: VaultMeta = {
       notebooks: [{ id: 'nb_inbox', name: 'Inbox', parentId: null, icon: 'Inbox' }],
       tags: [{ id: 'tag_taknot', name: 'taknot', color: '#61afef' }],
       notes: [
@@ -114,6 +187,7 @@ async function ensureVault() {
           updatedAt: createdAt,
         },
       ],
+      templates: [],
     };
     await writeMeta(meta);
     await fs.writeFile(
@@ -124,17 +198,17 @@ async function ensureVault() {
   }
 }
 
-async function listNotebooks() {
+async function listNotebooks(): Promise<VaultNotebook[]> {
   const meta = await readMeta();
   return meta.notebooks;
 }
 
-async function listTags() {
+async function listTags(): Promise<VaultTag[]> {
   const meta = await readMeta();
   return [...meta.tags].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function saveTag(input) {
+async function saveTag(input: TagInput) {
   const meta = await readMeta();
   const name = String(input.name || '').trim().toLowerCase();
   if (!name) throw new Error('Tag name required');
@@ -144,7 +218,7 @@ async function saveTag(input) {
   if (tag) {
     const oldName = tag.name;
     if (name !== oldName) {
-      if (meta.tags.some((t) => t.name === name && t.id !== tag.id)) {
+      if (meta.tags.some((t) => t.name === name && t.id !== tag!.id)) {
         throw new Error('Tag already exists');
       }
       for (const note of meta.notes) {
@@ -165,7 +239,7 @@ async function saveTag(input) {
   return tag;
 }
 
-async function deleteTag(id) {
+async function deleteTag(id: string): Promise<void> {
   const meta = await readMeta();
   const tag = meta.tags.find((t) => t.id === id);
   if (!tag) throw new Error('Tag not found');
@@ -177,7 +251,7 @@ async function deleteTag(id) {
 }
 
 
-function extractWikiTitles(body) {
+function extractWikiTitles(body: string): string[] {
   const titles = [];
   const re = /\[\[([^\]\n]+?)\]\]/g;
   let m;
@@ -218,14 +292,14 @@ async function getWikiGraph() {
   return { nodes, edges };
 }
 
-function countTasks(body) {
+function countTasks(body: string): { total: number; done: number } {
   const text = body || '';
   const total = (text.match(/^\s*[-*+]\s+\[[ xX]\]/gm) || []).length;
   const done = (text.match(/^\s*[-*+]\s+\[[xX]\]/gm) || []).length;
   return { total, done };
 }
 
-async function listNotes(filter = {}) {
+async function listNotes(filter: NoteFilter = {}) {
   const meta = await readMeta();
   const filtered = meta.notes
     .filter((n) => {
@@ -257,7 +331,7 @@ async function listNotes(filter = {}) {
   );
 }
 
-async function getNote(id) {
+async function getNote(id: string) {
   const meta = await readMeta();
   const info = meta.notes.find((n) => n.id === id);
   if (!info) throw new Error(`Note not found: ${id}`);
@@ -265,7 +339,7 @@ async function getNote(id) {
   return { ...info, body };
 }
 
-async function saveNote(input) {
+async function saveNote(input: NoteInput) {
   const meta = await readMeta();
   const id = input.id || randomUUID();
   const existing = meta.notes.find((n) => n.id === id);
@@ -336,7 +410,7 @@ async function createNote({
   notebookId = 'nb_inbox',
   title = 'Untitled',
   body,
-} = {}) {
+}: CreateNoteOpts = {}) {
   const content =
     body !== undefined && body !== null ? body : `# ${title}\n\n`;
   return saveNote({
@@ -349,13 +423,13 @@ async function createNote({
   });
 }
 
-function titleFromBody(body) {
+function titleFromBody(body: string): string {
   const line = (body || '').split('\n').find((l) => l.trim());
   if (!line) return '';
   return line.replace(/^#+\s*/, '').trim();
 }
 
-async function createNotebook(name, parentId = null) {
+async function createNotebook(name: string, parentId: string | null = null) {
   const trimmed = String(name || '').trim();
   if (!trimmed) throw new Error('Notebook name required');
   const meta = await readMeta();
@@ -374,7 +448,7 @@ async function createNotebook(name, parentId = null) {
   return notebook;
 }
 
-async function renameNotebook(id, name) {
+async function renameNotebook(id: string, name: string) {
   const trimmed = String(name || '').trim();
   if (!trimmed) throw new Error('Notebook name required');
   const meta = await readMeta();
@@ -385,7 +459,7 @@ async function renameNotebook(id, name) {
   return nb;
 }
 
-async function setNotebookIcon(id, icon) {
+async function setNotebookIcon(id: string, icon: string) {
   const meta = await readMeta();
   const nb = meta.notebooks.find((n) => n.id === id);
   if (!nb) throw new Error('Notebook not found');
@@ -394,7 +468,7 @@ async function setNotebookIcon(id, icon) {
   return nb;
 }
 
-async function moveNotebook(id, parentId) {
+async function moveNotebook(id: string, parentId: string | null) {
   if (id === 'nb_inbox') throw new Error('Cannot move Inbox');
   const meta = await readMeta();
   const nb = meta.notebooks.find((n) => n.id === id);
@@ -406,8 +480,8 @@ async function moveNotebook(id, parentId) {
       throw new Error('Parent notebook not found');
     }
     // prevent cycles: parent cannot be a descendant of id
-    let cursor = parent;
-    const seen = new Set();
+    let cursor: string | null = parent;
+    const seen = new Set<string>();
     while (cursor) {
       if (cursor === id) throw new Error('Cannot move into a descendant');
       if (seen.has(cursor)) break;
@@ -420,7 +494,7 @@ async function moveNotebook(id, parentId) {
   return nb;
 }
 
-async function deleteNotebook(id) {
+async function deleteNotebook(id: string) {
   if (id === 'nb_inbox') throw new Error('Cannot delete Inbox');
   const meta = await readMeta();
   const target = meta.notebooks.find((n) => n.id === id);
@@ -436,14 +510,14 @@ async function deleteNotebook(id) {
   await writeMeta(meta);
 }
 
-async function deleteNote(id) {
+async function deleteNote(id: string) {
   const meta = await readMeta();
   meta.notes = meta.notes.filter((n) => n.id !== id);
   await writeMeta(meta);
   await fs.unlink(notePath(id)).catch(() => { });
 }
 
-async function duplicateNote(id) {
+async function duplicateNote(id: string) {
   const note = await getNote(id);
   return saveNote({
     title: `${note.title} (copy)`,
@@ -454,13 +528,13 @@ async function duplicateNote(id) {
   });
 }
 
-async function listCustomTemplates() {
+async function listCustomTemplates(): Promise<VaultTemplate[]> {
   const meta = await readMeta()
   ensureMetaTemplates(meta)
-  return meta.templates
+  return meta.templates ?? []
 }
 
-async function saveTemplate(input) {
+async function saveTemplate(input: TemplateInput) {
   const meta = await readMeta()
   ensureMetaTemplates(meta)
   const name = String(input.name || '').trim()
@@ -469,7 +543,7 @@ async function saveTemplate(input) {
   const category = String(input.category || 'Custom').trim() || 'Custom'
   const body = String(input.body || '')
 
-  let tpl = input.id ? meta.templates.find(t => t.id === input.id) : null
+  let tpl = input.id ? meta.templates.find((t: VaultTemplate) => t.id === input.id) : null
 
   if (tpl) {
     tpl.name = name
@@ -490,11 +564,11 @@ async function saveTemplate(input) {
   return tpl
 }
 
-async function deleteTemplate(id) {
+async function deleteTemplate(id: string): Promise<void> {
   const meta = await readMeta()
   ensureMetaTemplates(meta)
   const before = meta.templates.length;
-  meta.templates = meta.templates.filter(t => t.id !== id)
+  meta.templates = meta.templates.filter((t: VaultTemplate) => t.id !== id)
 
   if (meta.templates.length === before) throw new Error('Template not found')
 

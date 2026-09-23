@@ -1,7 +1,33 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-/**
- * Tag context-menu + edit/delete/filter handlers.
- */
+import type { Dispatch, MouseEvent, SetStateAction } from 'react';
+import type { NoteFilterState, TaknotNote, TaknotTag } from '../vite-env';
+
+type TagMenu = {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+} | null;
+
+type TagEdit = { id: string; name: string; color: string } | null;
+
+type Args = {
+  tagMenu: TagMenu;
+  tagEdit: TagEdit;
+  tags: TaknotTag[];
+  filter: NoteFilterState;
+  setNbMenu: Dispatch<SetStateAction<any>>;
+  setIconPicker: Dispatch<SetStateAction<any>>;
+  setMovePicker: Dispatch<SetStateAction<any>>;
+  setTagMenu: Dispatch<SetStateAction<TagMenu>>;
+  setTagEdit: Dispatch<SetStateAction<TagEdit>>;
+  setFilter: Dispatch<SetStateAction<NoteFilterState>>;
+  setNote: Dispatch<SetStateAction<TaknotNote | null>>;
+  refreshMeta: () => Promise<void>;
+  refreshNotes: () => Promise<unknown>;
+};
+
+/** Tag context-menu + edit/delete/filter handlers. */
 export function useTagActions({
   tagMenu,
   tagEdit,
@@ -16,8 +42,8 @@ export function useTagActions({
   setNote,
   refreshMeta,
   refreshNotes,
-}) {
-  function openTagMenu(e, tag) {
+}: Args) {
+  function openTagMenu(e: MouseEvent, tag: TaknotTag) {
     e.preventDefault();
     e.stopPropagation();
     setNbMenu(null);

@@ -1,7 +1,9 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+import type { CSSProperties, MouseEventHandler } from 'react';
+import type { TaknotTag } from '../vite-env';
+
 const DEFAULT = '#8b93a7';
 
-function hexToRgb(hex) {
+function hexToRgb(hex: string | undefined) {
   const h = String(hex || DEFAULT).replace('#', '');
   if (h.length !== 6) return { r: 139, g: 147, b: 167 };
   return {
@@ -11,6 +13,14 @@ function hexToRgb(hex) {
   };
 }
 
+type TagBadgeProps = {
+  name: string;
+  color?: string;
+  onRemove?: MouseEventHandler<HTMLButtonElement>;
+  onClick?: MouseEventHandler<HTMLButtonElement>;
+  size?: 'sm' | 'md';
+};
+
 /** Colored tag badge — used in list, editor, and preview. */
 export default function TagBadge({
   name,
@@ -18,13 +28,13 @@ export default function TagBadge({
   onRemove,
   onClick,
   size = 'md',
-}) {
+}: TagBadgeProps) {
   const { r, g, b } = hexToRgb(color);
   const style = {
     '--tag-color': color,
     '--tag-bg': `rgba(${r}, ${g}, ${b}, 0.18)`,
     '--tag-border': `rgba(${r}, ${g}, ${b}, 0.45)`,
-  };
+  } as CSSProperties;
 
   const className = `tag-badge tag-badge-${size}${onRemove || onClick ? ' is-interactive' : ''}`;
 
@@ -60,8 +70,8 @@ export default function TagBadge({
   );
 }
 
-export function tagColorMap(tags) {
-  const map = {};
+export function tagColorMap(tags: TaknotTag[] | null | undefined): Record<string, string> {
+  const map: Record<string, string> = {};
   for (const t of tags || []) {
     if (t?.name) map[t.name] = t.color || DEFAULT;
   }

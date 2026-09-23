@@ -1,6 +1,46 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-import { useEffect } from 'react';
-import { eventMatchesHotkey } from './hotkeys';
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { eventMatchesHotkey, type HotkeyMap } from './hotkeys';
+import type { TaknotNote } from '../vite-env';
+
+type UseAppHotkeysArgs = {
+  hotkeysRef: MutableRefObject<HotkeyMap>;
+  noteRef: MutableRefObject<(TaknotNote & { body: string }) | null>;
+  saveBaselineRef: MutableRefObject<string>;
+  historyRef: MutableRefObject<string[]>;
+  historyIndexRef: MutableRefObject<number>;
+  listSearchRef: MutableRefObject<HTMLInputElement | null>;
+  noteSnapshot: (n: { id: string; body: string; notebookId?: string; tags?: string[]; status?: string; pinned?: boolean }) => string;
+  persistNote: (n: any, opts?: { force?: boolean }) => Promise<unknown>;
+  openCreate: () => void;
+  nbMenu: unknown;
+  tagMenu: unknown;
+  iconPicker: unknown;
+  movePicker: unknown;
+  tagEdit: unknown;
+  notebookDetail: unknown;
+  templateEditor: unknown;
+  quickSearchOpen: boolean;
+  settingsOpen: boolean;
+  focusMode: boolean;
+  graphOpen: boolean;
+  vimMode: boolean;
+  setNbMenu: Dispatch<SetStateAction<any>>;
+  setTagMenu: Dispatch<SetStateAction<any>>;
+  setIconPicker: Dispatch<SetStateAction<any>>;
+  setMovePicker: Dispatch<SetStateAction<any>>;
+  setTagEdit: Dispatch<SetStateAction<any>>;
+  setNotebookDetail: Dispatch<SetStateAction<any>>;
+  setTemplateEditor: Dispatch<SetStateAction<any>>;
+  setQuickSearchOpen: Dispatch<SetStateAction<boolean>>;
+  setSettingsOpen: Dispatch<SetStateAction<boolean>>;
+  setFocusMode: Dispatch<SetStateAction<boolean>>;
+  setGraphOpen: Dispatch<SetStateAction<boolean>>;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+  setSelectedId: Dispatch<SetStateAction<string | null>>;
+  setNote: Dispatch<SetStateAction<any>>;
+  setNotes: Dispatch<SetStateAction<any>>;
+  setHistoryIndex: Dispatch<SetStateAction<number>>;
+};
 
 /**
  * Global app hotkeys (Escape overlays + remappable bindings).
@@ -44,11 +84,11 @@ export function useAppHotkeys({
   setNote,
   setNotes,
   setHistoryIndex,
-}) {
+}: UseAppHotkeysArgs) {
   useEffect(() => {
-    function onKeyDown(e) {
+    function onKeyDown(e: KeyboardEvent) {
       // Don't steal keys while recording a binding in Settings
-      if (e.target?.closest?.('.hotkey-bind.is-recording')) return;
+      if ((e.target as Element | null)?.closest?.('.hotkey-bind.is-recording')) return;
 
       const hk = hotkeysRef.current;
 
@@ -91,7 +131,7 @@ export function useAppHotkeys({
           // In vim mode, Esc must reach CodeMirror (insert → normal), not exit focus.
           if (
             vimMode &&
-            e.target?.closest?.('.cm-editor, .md-code-editor, .md-code-wrap')
+            (e.target as Element | null)?.closest?.('.cm-editor, .md-code-editor, .md-code-wrap')
           ) {
             return;
           }
@@ -107,7 +147,7 @@ export function useAppHotkeys({
         return;
       }
 
-      const run = (id) => hk[id] && eventMatchesHotkey(e, hk[id]);
+      const run = (id: keyof HotkeyMap) => hk[id] && eventMatchesHotkey(e, hk[id]);
 
       if (run('newNote')) {
         e.preventDefault();
@@ -138,9 +178,9 @@ export function useAppHotkeys({
         const next = { ...cur, pinned: !Boolean(cur.pinned) };
         setNote(next);
         noteRef.current = next;
-        setNotes((prev) => {
-          const rest = prev.filter((x) => x.id !== next.id);
-          const row = { ...(prev.find((x) => x.id === next.id) || {}), ...next };
+        setNotes((prev: any[]) => {
+          const rest = prev.filter((x: any) => x.id !== next.id);
+          const row = { ...(prev.find((x: any) => x.id === next.id) || {}), ...next };
           return [row, ...rest].sort((a, b) => {
             const ap = a.pinned ? 1 : 0;
             const bp = b.pinned ? 1 : 0;
@@ -220,7 +260,7 @@ export function useAppHotkeys({
         statusDropped: 'dropped',
       };
       for (const [hid, statusId] of Object.entries(statusMap)) {
-        if (!run(hid)) continue;
+        if (!run(hid as keyof HotkeyMap)) continue;
         e.preventDefault();
         const cur = noteRef.current;
         if (!cur?.id) return;
@@ -228,8 +268,8 @@ export function useAppHotkeys({
         const next = { ...cur, status: statusId };
         setNote(next);
         noteRef.current = next;
-        setNotes((prev) =>
-          prev.map((n) => (n.id === next.id ? { ...n, status: statusId } : n)),
+        setNotes((prev: any[]) =>
+          prev.map((n: any) => (n.id === next.id ? { ...n, status: statusId } : n)),
         );
         void persistNote(next, { force: true });
         return;

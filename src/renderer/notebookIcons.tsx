@@ -1,4 +1,4 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
   Archive,
   Book,
@@ -39,13 +39,24 @@ export const NOTEBOOK_ICON_MAP = {
   ShoppingBag,
   Wallet,
   Wrench,
+} as const satisfies Record<string, LucideIcon>;
+
+export type NotebookIconName = keyof typeof NOTEBOOK_ICON_MAP;
+
+export const NOTEBOOK_ICON_NAMES = Object.keys(
+  NOTEBOOK_ICON_MAP,
+) as NotebookIconName[];
+
+type NotebookIconProps = LucideProps & {
+  name?: string | null;
+  className?: string;
 };
 
-export const NOTEBOOK_ICON_NAMES = Object.keys(NOTEBOOK_ICON_MAP);
-
-export function NotebookIcon({ name, className = '', ...props }) {
-  const Icon = NOTEBOOK_ICON_MAP[name] || Book;
-  const key = NOTEBOOK_ICON_MAP[name] ? name : 'Book';
+export function NotebookIcon({ name, className = '', ...props }: NotebookIconProps) {
+  const key = (name && name in NOTEBOOK_ICON_MAP
+    ? name
+    : 'Book') as NotebookIconName;
+  const Icon = NOTEBOOK_ICON_MAP[key];
   const merged = ['nb-icon', `nb-icon-${key}`, className].filter(Boolean).join(' ');
   return <Icon className={merged} {...props} />;
 }

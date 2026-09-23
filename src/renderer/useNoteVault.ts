@@ -1,6 +1,29 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-import { useCallback, useEffect, useRef } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from 'react';
 import { titleFromBody, noteSnapshot } from './lib/format';
+import type { TaknotNote } from '../vite-env';
+
+type EditorNote = TaknotNote & { body: string };
+
+type Args = {
+  selectedId: string | null;
+  note: EditorNote | null;
+  noteRef: MutableRefObject<EditorNote | null>;
+  savingRef: MutableRefObject<boolean>;
+  saveBaselineRef: MutableRefObject<string>;
+  setNote: Dispatch<SetStateAction<EditorNote | null>>;
+  setNotes: Dispatch<SetStateAction<TaknotNote[]>>;
+  setSelectedId: Dispatch<SetStateAction<string | null>>;
+  setSaving: Dispatch<SetStateAction<boolean>>;
+  refreshMeta: () => Promise<void>;
+  refreshNotes: () => Promise<TaknotNote[]>;
+};
 
 /**
  * Vault load/save/autosave + external change sync for the active note.
@@ -18,15 +41,13 @@ export function useNoteVault({
   setSaving,
   refreshMeta,
   refreshNotes,
-}) {
+}: Args) {
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
-  // External vault writes (MCP / another process) → refresh UI.
   useEffect(() => {
     if (typeof window.taknot?.onVaultChanged !== 'function') return undefined;
     return window.taknot.onVaultChanged(() => {
-      // Ignore our own autosave writes — reloading would reset the editor cursor.
       if (savingRef.current) {
         refreshMeta().catch(console.error);
         refreshNotes().catch(console.error);
@@ -43,10 +64,8 @@ export function useNoteVault({
             return;
           }
           const current = noteRef.current;
-          // Don't clobber in-progress edits.
           if (current && noteSnapshot(current) !== saveBaselineRef.current) return;
           const n = await window.taknot.getNote(id);
-          // Same body → only refresh meta fields (avoid CodeMirror doc replace).
           if (current && current.body === n.body) {
             setNote((prev) =>
               prev && prev.id === n.id
@@ -61,11 +80,15 @@ export function useNoteVault({
                   }
                 : prev,
             );
-            saveBaselineRef.current = noteSnapshot({ ...current, ...n, body: current.body });
+            saveBaselineRef.current = noteSnapshot({
+              ...current,
+              ...n,
+              body: current.body,
+            });
             return;
           }
-          setNote(n);
-          saveBaselineRef.current = noteSnapshot(n);
+          setNote(n as EditorNote);
+          saveBaselineRef.current = noteSnapshot(n as EditorNote);
         })
         .catch(console.error);
     });
@@ -89,8 +112,8 @@ export function useNoteVault({
       .getNote(selectedId)
       .then((n) => {
         if (!cancelled) {
-          setNote(n);
-          saveBaselineRef.current = noteSnapshot(n);
+          setNote(n as EditorNote);
+          saveBaselineRef.current = noteSnapshot(n as EditorNote);
         }
       })
       .catch(console.error);
@@ -99,65 +122,64 @@ export function useNoteVault({
     };
   }, [selectedId, setNote, saveBaselineRef]);
 
-  const persistNote = useCallback(async (n, { force = false } = {}) => {
-    if (!n?.id) return null;
-    const payload = {
-      id: n.id,
-      title: titleFromBody(n.body),
-      body: n.body,
-      notebookId: n.notebookId,
-      tags: n.tags || [],
-      status: n.status,
-      pinned: Boolean(n.pinned),
-    };
-    const snap = JSON.stringify(payload);
-    if (!force && snap === saveBaselineRef.current) return n;
-    savingRef.current = true;
-    setSaving(true);
-    try {
-      const saved = await window.taknot.saveNote(payload);
-      const merged = { ...n, ...saved, pinned: Boolean(saved.pinned) };
-      saveBaselineRef.current = noteSnapshot(merged);
-      setNote((prev) =>
-        prev && prev.id === saved.id
-          ? {
-              ...prev,
-              title: saved.title,
-              updatedAt: saved.updatedAt,
-              pinned: Boolean(saved.pinned),
-            }
-          : prev,
-      );
-      setNotes((prev) => {
-        const rest = prev.filter((x) => x.id !== saved.id);
-        const row = {
-          ...(prev.find((x) => x.id === saved.id) || {}),
-          ...saved,
-          pinned: Boolean(saved.pinned),
-        };
-        return [row, ...rest].sort((a, b) => {
-          const ap = a.pinned ? 1 : 0;
-          const bp = b.pinned ? 1 : 0;
-          if (ap !== bp) return bp - ap;
-          return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+  const persistNote = useCallback(
+    async (n: EditorNote | null | undefined, { force = false }: { force?: boolean } = {}) => {
+      if (!n?.id) return null;
+      const payload = {
+        id: n.id,
+        title: titleFromBody(n.body),
+        body: n.body,
+        notebookId: n.notebookId,
+        tags: n.tags || [],
+        status: n.status,
+        pinned: Boolean(n.pinned),
+      };
+      const snap = JSON.stringify(payload);
+      if (!force && snap === saveBaselineRef.current) return n;
+      savingRef.current = true;
+      setSaving(true);
+      try {
+        const saved = await window.taknot.saveNote(payload);
+        const merged = { ...n, ...saved, pinned: Boolean(saved.pinned) } as EditorNote;
+        saveBaselineRef.current = noteSnapshot(merged);
+        setNote((prev) =>
+          prev && prev.id === saved.id
+            ? {
+                ...prev,
+                title: saved.title,
+                updatedAt: saved.updatedAt,
+                pinned: Boolean(saved.pinned),
+              }
+            : prev,
+        );
+        setNotes((prev) => {
+          const rest = prev.filter((x) => x.id !== saved.id);
+          const row = {
+            ...(prev.find((x) => x.id === saved.id) || {}),
+            ...saved,
+            pinned: Boolean(saved.pinned),
+          } as TaknotNote;
+          return [row, ...rest].sort((a, b) => {
+            const ap = a.pinned ? 1 : 0;
+            const bp = b.pinned ? 1 : 0;
+            if (ap !== bp) return bp - ap;
+            return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+          });
         });
-      });
-      return saved;
-    } catch (err) {
-      console.error(err);
-      return null;
-    } finally {
-      setSaving(false);
-      // Let fs.watch settle before accepting external vault reloads.
-      setTimeout(() => {
-        savingRef.current = false;
-      }, 250);
-    }
-  }, [savingRef, saveBaselineRef, setSaving, setNote, setNotes]);
+        return saved;
+      } catch (err) {
+        console.error(err);
+        return null;
+      } finally {
+        setSaving(false);
+        setTimeout(() => {
+          savingRef.current = false;
+        }, 250);
+      }
+    },
+    [savingRef, saveBaselineRef, setSaving, setNote, setNotes],
+  );
 
-  // Debounced autosave. Cleanup must ONLY clear the timer — persisting on
-  // every dependency change was saving on each keystroke and racing vault:changed,
-  // which reloaded the note and reset the CodeMirror cursor.
   useEffect(() => {
     if (!note?.id) return undefined;
     const snap = noteSnapshot(note);
@@ -180,14 +202,10 @@ export function useNoteVault({
     saveBaselineRef,
   ]);
 
-  // Flush pending edits when switching notes or unmounting.
   useEffect(() => {
     return () => {
       const latest = noteRef.current;
-      if (
-        latest?.id &&
-        noteSnapshot(latest) !== saveBaselineRef.current
-      ) {
+      if (latest?.id && noteSnapshot(latest) !== saveBaselineRef.current) {
         void persistNote(latest);
       }
     };

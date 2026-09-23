@@ -1,11 +1,53 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Network, RefreshCw, X } from 'lucide-react';
 import { findStatus } from './statuses';
 
-const ICON = { size: 15, strokeWidth: 1.75 };
+const ICON = { size: 15, strokeWidth: 1.75 } as const;
 
-function hashPos(id, i, n) {
+type GraphNode = {
+  id: string;
+  title?: string;
+  status?: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+};
+
+type GraphEdge = { source: string; target: string };
+
+type SimState = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  running: boolean;
+};
+
+type Cam = { x: number; y: number; scale: number };
+
+type DragState = {
+  id: string;
+  moved?: boolean;
+  ox: number;
+  oy: number;
+} | null;
+
+type PanState = {
+  x?: number;
+  y?: number;
+  cx?: number;
+  cy?: number;
+  camX?: number;
+  camY?: number;
+  moved?: boolean;
+} | null;
+
+type Props = {
+  onOpenNote: (id: string) => void;
+  onClose: () => void;
+  selectedId?: string | null;
+};
+
+function hashPos(id: string, i: number, n: number) {
   let h = 0;
   for (let c = 0; c < id.length; c++) h = (h * 31 + id.charCodeAt(c)) | 0;
   const ang = ((h >>> 0) % 360) * (Math.PI / 180) + (i / Math.max(n, 1)) * Math.PI * 2;
@@ -17,17 +59,17 @@ function hashPos(id, i, n) {
  * Force-directed wiki-link graph.
  * @param {{ onOpenNote: (id: string) => void, onClose: () => void, selectedId?: string | null }} props
  */
-export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
-  const canvasRef = useRef(null);
-  const wrapRef = useRef(null);
-  const simRef = useRef({ nodes: [], edges: [], running: true });
-  const camRef = useRef({ x: 0, y: 0, scale: 1 });
-  const dragRef = useRef(null);
-  const panRef = useRef(null);
+export default function GraphView({ onOpenNote, onClose, selectedId = null }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const simRef = useRef<SimState>({ nodes: [], edges: [], running: true });
+  const camRef = useRef<Cam>({ x: 0, y: 0, scale: 1 });
+  const dragRef = useRef<DragState>(null);
+  const panRef = useRef<PanState>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
-  const [hoverId, setHoverId] = useState(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
@@ -45,7 +87,7 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
           vy: 0,
         };
       });
-      const idSet = new Set(nodes.map((n) => n.id));
+      const idSet = new Set(nodes.map((n: GraphNode) => n.id));
       const edges = (data.edges || []).filter(
         (e) => idSet.has(e.source) && idSet.has(e.target),
       );
@@ -53,7 +95,7 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
       setStats({ nodes: nodes.length, edges: edges.length });
     } catch (err) {
       console.error(err);
-      setError(err?.message || String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -69,8 +111,10 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return undefined;
+    const wrapEl = wrap;
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
     let raf = 0;
     let alive = true;
 
@@ -213,8 +257,9 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
     };
   }, [hoverId, selectedId, q, loading]);
 
-  const toWorld = (clientX, clientY) => {
+  const toWorld = (clientX: number, clientY: number) => {
     const wrap = wrapRef.current;
+    if (!wrap) return { x: 0, y: 0 };
     const cam = camRef.current;
     const rect = wrap.getBoundingClientRect();
     const x = (clientX - rect.left - wrap.clientWidth / 2 - cam.x) / cam.scale;
@@ -222,7 +267,7 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
     return { x, y };
   };
 
-  const hitTest = (clientX, clientY) => {
+  const hitTest = (clientX: number, clientY: number) => {
     const { x, y } = toWorld(clientX, clientY);
     const cam = camRef.current;
     const thresh = 12 / cam.scale;
@@ -300,7 +345,7 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
           }
           const hit = hitTest(e.clientX, e.clientY);
           if (hit) {
-            dragRef.current = {
+            dragRef.current! = {
               id: hit.id,
               moved: false,
               ox: e.clientX,
@@ -317,8 +362,8 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
           }
         }}
         onMouseMove={(e) => {
-          if (dragRef.current) {
-            const n = simRef.current.nodes.find((x) => x.id === dragRef.current.id);
+          if (dragRef.current!) {
+            const n = simRef.current.nodes.find((x) => x.id === dragRef.current!.id);
             if (n) {
               const w = toWorld(e.clientX, e.clientY);
               n.x = w.x;
@@ -326,27 +371,27 @@ export default function GraphView({ onOpenNote, onClose, selectedId = null }) {
               n.vx = 0;
               n.vy = 0;
               if (
-                Math.abs(e.clientX - dragRef.current.ox) > 4 ||
-                Math.abs(e.clientY - dragRef.current.oy) > 4
+                Math.abs(e.clientX - dragRef.current!.ox) > 4 ||
+                Math.abs(e.clientY - dragRef.current!.oy) > 4
               ) {
-                dragRef.current.moved = true;
+                dragRef.current!.moved = true;
               }
             }
             return;
           }
           if (panRef.current) {
             camRef.current.x =
-              panRef.current.camX + (e.clientX - panRef.current.x);
+              (panRef.current as any).camX + (e.clientX - (panRef.current as any).x);
             camRef.current.y =
-              panRef.current.camY + (e.clientY - panRef.current.y);
+              (panRef.current as any).camY + (e.clientY - (panRef.current as any).y);
             return;
           }
           const hit = hitTest(e.clientX, e.clientY);
           setHoverId(hit?.id || null);
         }}
         onMouseUp={(e) => {
-          if (dragRef.current && !dragRef.current.moved) {
-            onOpenNote?.(dragRef.current.id);
+          if (dragRef.current && !dragRef.current!.moved) {
+            onOpenNote?.(dragRef.current!.id);
           }
           dragRef.current = null;
           panRef.current = null;

@@ -1,21 +1,28 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
 const ICON = { size: 16, strokeWidth: 2 };
 
+type QuickSearchProps = {
+  open: boolean;
+  onClose: () => void;
+  notes: import('../vite-env').TaknotNote[];
+  onSelect: (id: string) => void;
+  colorsByTag?: Record<string, string>;
+};
+
 export default function QuickSearch({
   open,
   onClose,
   onSelect,
   colorsByTag = {},
-}) {
-  const inputRef = useRef(null);
+}: QuickSearchProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState<import('../vite-env').TaknotNote[]>([]);
   const [index, setIndex] = useState(0);
-  const listRef = useRef(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -39,7 +46,7 @@ export default function QuickSearch({
     const q = query.trim().toLowerCase();
     if (!q) return notes.slice(0, 40);
     return notes
-      .filter((n) => {
+      .filter((n: import('../vite-env').TaknotNote) => {
         const title = (n.title || '').toLowerCase();
         const tags = (n.tags || []).join(' ').toLowerCase();
         return title.includes(q) || tags.includes(q);
@@ -53,7 +60,7 @@ export default function QuickSearch({
 
   useEffect(() => {
     if (!open) return undefined;
-    function onKey(e) {
+    function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
@@ -120,7 +127,7 @@ export default function QuickSearch({
             className="quick-search-input"
             placeholder="Search notes…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e: any) => setQuery(e.target.value)}
             autoComplete="off"
             spellCheck={false}
           />
@@ -130,7 +137,7 @@ export default function QuickSearch({
           {filtered.length === 0 ? (
             <div className="quick-search-empty">No matching notes</div>
           ) : (
-            filtered.map((n, i) => (
+            filtered.map((n: import('../vite-env').TaknotNote, i: number) => (
               <button
                 key={n.id}
                 type="button"

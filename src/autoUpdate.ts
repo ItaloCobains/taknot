@@ -1,11 +1,10 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
 const { app, dialog, shell, net } = require('electron');
 
-let autoUpdater = null;
+let autoUpdater: any = null;
 try {
   ({ autoUpdater } = require('electron-updater'));
-} catch (err) {
-  console.warn('[taknot] electron-updater unavailable', err?.message || err);
+} catch (err: unknown) {
+  console.warn('[taknot] electron-updater unavailable', err instanceof Error ? err.message : err);
 }
 
 const REPO = { owner: 'ItaloCobains', name: 'taknot' };
@@ -24,27 +23,27 @@ async function openLatestReleasePage() {
   );
 }
 
-function pickAsset(assets) {
-  const names = assets.map((a) => ({
+function pickAsset(assets: Array<{ name?: string; browser_download_url?: string }>) {
+  const names = assets.map((a: { name?: string; browser_download_url?: string }) => ({
     a,
     n: String(a.name || '').toLowerCase(),
   }));
   if (process.platform === 'darwin') {
     return (
-      names.find((x) => x.n.endsWith('.dmg'))?.a ||
-      names.find((x) => x.n.endsWith('.zip'))?.a
+      names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.dmg'))?.a ||
+      names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.zip'))?.a
     );
   }
   if (process.platform === 'win32') {
     return (
-      names.find((x) => x.n.includes('setup') && x.n.endsWith('.exe'))?.a ||
-      names.find((x) => x.n.endsWith('.exe'))?.a
+      names.find((x: { a: typeof assets[number]; n: string }) => x.n.includes('setup') && x.n.endsWith('.exe'))?.a ||
+      names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.exe'))?.a
     );
   }
   return (
-    names.find((x) => x.n.endsWith('.appimage'))?.a ||
-    names.find((x) => x.n.endsWith('.deb'))?.a ||
-    names.find((x) => x.n.endsWith('.rpm'))?.a
+    names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.appimage'))?.a ||
+    names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.deb'))?.a ||
+    names.find((x: { a: typeof assets[number]; n: string }) => x.n.endsWith('.rpm'))?.a
   );
 }
 
@@ -97,11 +96,11 @@ function setupAutoUpdater() {
     repo: REPO.name,
   });
 
-  autoUpdater.on('error', (err) => {
-    console.warn('[autoUpdate]', err?.message || err);
+  autoUpdater.on('error', (err: any) => {
+    console.warn('[autoUpdate]', (err instanceof Error ? err.message : err));
   });
 
-  autoUpdater.on('update-available', async (info) => {
+  autoUpdater.on('update-available', async (info: any) => {
     const { response } = await dialog.showMessageBox({
       type: 'info',
       buttons: ['Atualizar agora', 'Depois'],
@@ -135,7 +134,7 @@ function setupAutoUpdater() {
     });
   });
 
-  autoUpdater.on('update-downloaded', async (info) => {
+  autoUpdater.on('update-downloaded', async (info: any) => {
     const { response } = await dialog.showMessageBox({
       type: 'info',
       buttons: ['Reiniciar agora', 'Depois'],

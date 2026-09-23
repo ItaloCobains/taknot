@@ -1,4 +1,13 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
+import type { TagMenuState } from '../vite-env';
+
+type Props = {
+  tagMenu: TagMenuState | null;
+  onSettings: () => void;
+  onFilter: () => void;
+  onCopyId: () => void;
+  onDelete: () => void;
+};
+
 /** Tag right-click menu. */
 export default function TagContextMenu({
   tagMenu,
@@ -6,7 +15,7 @@ export default function TagContextMenu({
   onFilter,
   onCopyId,
   onDelete,
-}) {
+}: Props) {
   if (!tagMenu) return null;
 
   return (

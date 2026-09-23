@@ -1,5 +1,4 @@
-// @ts-nocheck — gradual typing after JS→TS rename.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Compartment, EditorState } from '@codemirror/state';
 import { vim, getCM } from '@replit/codemirror-vim';
@@ -43,6 +42,61 @@ import {
   filterLatexCommands,
 } from './latexCommands';
 
+type SlashMenuState = {
+  start: number;
+  end: number;
+  query: string;
+  left: number;
+  top: number;
+  maxHeight: number;
+};
+
+type WikiMenuState = {
+  start: number;
+  end: number;
+  query: string;
+  left: number;
+  top: number;
+  maxHeight: number;
+};
+
+type LatexMenuState = {
+  start: number;
+  end: number;
+  query: string;
+  left: number;
+  top: number;
+  maxHeight: number;
+};
+
+type SpellMenuState = {
+  word: string;
+  from: number;
+  to: number;
+  left: number;
+  top: number;
+  suggestions: string[];
+};
+
+type VimStatusState = { key: string; label: string; mode?: string };
+
+type MdEditorApi = {
+  setScrollRatio?: (ratio: number) => void;
+  focus?: () => void;
+  [key: string]: unknown;
+};
+
+type MdCodeEditorProps = {
+  noteId?: string | null;
+  value: string;
+  onChange: (value: string) => void;
+  onScrollRatio?: (ratio: number) => void;
+  apiRef?: MutableRefObject<MdEditorApi | null>;
+  vimMode?: boolean;
+  noteTitles?: string[];
+};
+
+
 const wikiMatcher = new MatchDecorator({
   regexp: /\[\[[^\]\n]+?\]\]/g,
   decoration: Decoration.mark({ class: 'cm-wiki-link' }),
@@ -51,17 +105,17 @@ const wikiMatcher = new MatchDecorator({
 const wikiLinkPlugin = ViewPlugin.fromClass(
   class {
     decorations;
-    constructor(view) {
+    constructor(view: EditorView) {
       this.decorations = wikiMatcher.createDeco(view);
     }
-    update(update) {
+    update(update: any) {
       this.decorations = wikiMatcher.updateDeco(update, this.decorations);
     }
   },
   { decorations: (v) => v.decorations },
 );
 
-function detectWiki(body, caret) {
+function detectWiki(body: string, caret: number) {
   const before = body.slice(0, caret);
   const open = before.lastIndexOf('[[');
   if (open < 0) return null;
@@ -70,7 +124,7 @@ function detectWiki(body, caret) {
   return { start: open, end: caret, query: afterOpen };
 }
 
-function formatVimMode(mode) {
+function formatVimMode(mode: string) {
   const m = String(mode || 'normal').toLowerCase();
   if (m.includes('insert')) return { key: 'insert', label: 'INSERT' };
   if (m.includes('replace')) return { key: 'replace', label: 'REPLACE' };
@@ -79,7 +133,7 @@ function formatVimMode(mode) {
   return { key: 'normal', label: 'NORMAL' };
 }
 
-function readVimCursor(view) {
+function readVimCursor(view: EditorView) {
   const head = view.state.selection.main.head;
   const line = view.state.doc.lineAt(head);
   const col = head - line.from + 1;
@@ -90,7 +144,7 @@ function readVimCursor(view) {
 
 
 /** Wrap selection (or insert markers) for markdown emphasis. */
-function wrapMarkdown(view, left, right = left) {
+function wrapMarkdown(view: EditorView, left: string, right = left) {
   const { state } = view;
   const sel = state.selection.main;
   const selected = state.sliceDoc(sel.from, sel.to);
@@ -132,7 +186,7 @@ function wrapMarkdown(view, left, right = left) {
 }
 
 /** Vim Ctrl-d / Ctrl-u: scroll ~half a page and move the cursor with it. */
-function scrollVimHalfPage(view, dir) {
+function scrollVimHalfPage(view: EditorView, dir: number) {
   const box = view.scrollDOM;
   const half = Math.max(24, Math.round(box.clientHeight / 2));
   const maxScroll = Math.max(0, box.scrollHeight - box.clientHeight);
@@ -232,22 +286,22 @@ export default function MdCodeEditor({
   apiRef,
   vimMode = false,
   noteTitles = [],
-}) {
-  const hostRef = useRef(null);
-  const viewRef = useRef(null);
-  const vimCompartmentRef = useRef(null);
-  const slashMenuRef = useRef(null);
-  const wikiMenuRef = useRef(null);
-  const latexMenuRef = useRef(null);
-  const [slash, setSlash] = useState(null);
-  const [spellMenu, setSpellMenu] = useState(null);
+}: MdCodeEditorProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const vimCompartmentRef = useRef<Compartment | null>(null);
+  const slashMenuRef = useRef<HTMLDivElement | null>(null);
+  const wikiMenuRef = useRef<HTMLDivElement | null>(null);
+  const latexMenuRef = useRef<HTMLDivElement | null>(null);
+  const [slash, setSlash] = useState<SlashMenuState | null>(null);
+  const [spellMenu, setSpellMenu] = useState<SpellMenuState | null>(null);
 
   const [slashIndex, setSlashIndex] = useState(0);
-  const [wiki, setWiki] = useState(null);
+  const [wiki, setWiki] = useState<WikiMenuState | null>(null);
   const [wikiIndex, setWikiIndex] = useState(0);
-  const [latex, setLatex] = useState(null);
+  const [latex, setLatex] = useState<LatexMenuState | null>(null);
   const [latexIndex, setLatexIndex] = useState(0);
-  const [vimStatus, setVimStatus] = useState(null);
+  const [vimStatus, setVimStatus] = useState<VimStatusState | null>(null);
   const [vimCursor, setVimCursor] = useState({ line: 1, col: 1, pct: 0 });
   const [vimClock, setVimClock] = useState(() => {
     const d = new Date();
@@ -263,7 +317,7 @@ export default function MdCodeEditor({
     const q = wiki.query.trim().toLowerCase();
     const titles = [...new Set(noteTitles.filter(Boolean))];
     const filtered = q
-      ? titles.filter((title) => title.toLowerCase().includes(q))
+      ? titles.filter((title: string) => title.toLowerCase().includes(q))
       : titles;
     return filtered.slice(0, 12);
   }, [wiki, noteTitles]);
@@ -317,7 +371,7 @@ export default function MdCodeEditor({
     active?.scrollIntoView({ block: 'nearest' });
   }, [latexIndex, latex, latexList.length]);
 
-  function applySlashCommand(cmd) {
+  function applySlashCommand(cmd: any) {
     const view = viewRef.current;
     const s = slashRef.current;
     if (!view || !s || !cmd) return;
@@ -333,7 +387,7 @@ export default function MdCodeEditor({
     view.focus();
   }
 
-  function applyWikiTitle(title) {
+  function applyWikiTitle(title: string) {
     const view = viewRef.current;
     const w = wikiRef.current;
     if (!view || !w || !title) return;
@@ -347,7 +401,7 @@ export default function MdCodeEditor({
     view.focus();
   }
 
-  function applyLatexCommand(cmd) {
+  function applyLatexCommand(cmd: any) {
     const view = viewRef.current;
     const hit = latexRef.current;
     if (!view || !hit || !cmd) return;
@@ -364,7 +418,7 @@ export default function MdCodeEditor({
   useEffect(() => {
     if (!hostRef.current) return undefined;
 
-    const placeMenu = (view, pos, count) => {
+    const placeMenu = (view: EditorView, pos: number, count: number) => {
       const coords = view.coordsAtPos(pos);
       const menuW = 260;
       const menuH = Math.min(280, Math.max(48, count * 36 + 12));
@@ -382,7 +436,7 @@ export default function MdCodeEditor({
       return { top, left, maxHeight: menuH };
     };
 
-    const updateMenus = (view) => {
+    const updateMenus = (view: EditorView) => {
       const caret = view.state.selection.main.head;
       const body = view.state.doc.toString();
 
@@ -394,7 +448,7 @@ export default function MdCodeEditor({
         const q = wikiHit.query.trim().toLowerCase();
         const matches = (
           q
-            ? titles.filter((title) => title.toLowerCase().includes(q))
+            ? titles.filter((title: string) => title.toLowerCase().includes(q))
             : titles
         ).slice(0, 12);
         const place = placeMenu(view, wikiHit.start, Math.max(matches.length, 1));
@@ -532,7 +586,7 @@ export default function MdCodeEditor({
           // Mac CM maps Ctrl-d → deleteCharForward (emacs). In vim mode, half-page scroll.
           {
             key: 'Ctrl-d',
-            run: (view) => {
+            run: (view: EditorView) => {
               if (!vimModeRef.current) return false;
               return scrollVimHalfPage(view, 1);
             },
@@ -540,7 +594,7 @@ export default function MdCodeEditor({
           },
           {
             key: 'Ctrl-u',
-            run: (view) => {
+            run: (view: EditorView) => {
               if (!vimModeRef.current) return false;
               return scrollVimHalfPage(view, -1);
             },
@@ -580,7 +634,7 @@ export default function MdCodeEditor({
             if (!bad.has(hit.word) && !bad.has(hit.word.toLowerCase())) return false;
             event.preventDefault();
             void (async () => {
-              let suggestions = [];
+              let suggestions: string[] = [];
               try {
                 suggestions = (await window.taknot?.suggestSpelling?.(hit.word)) || [];
               } catch {
@@ -616,7 +670,7 @@ export default function MdCodeEditor({
     };
     syncVimStatus();
     const cm = getCM(view);
-    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    const onMode = (e: any) => setVimStatus(formatVimMode(e?.mode || 'normal'));
     if (cm) cm.on('vim-mode-change', onMode);
 
     return () => {
@@ -641,7 +695,7 @@ export default function MdCodeEditor({
       return undefined;
     }
     const cm = getCM(view);
-    const onMode = (e) => setVimStatus(formatVimMode(e?.mode || 'normal'));
+    const onMode = (e: any) => setVimStatus(formatVimMode(e?.mode || 'normal'));
     setVimStatus(formatVimMode(cm?.state?.vim?.mode || 'normal'));
     if (cm) cm.on('vim-mode-change', onMode);
     return () => {
@@ -671,7 +725,7 @@ export default function MdCodeEditor({
   }, [value]);
 
   useEffect(() => {
-    function onKeyDown(e) {
+    function onKeyDown(e: KeyboardEvent) {
       if (e.defaultPrevented) return;
       const view = viewRef.current;
       if (!view) return;
@@ -724,7 +778,7 @@ export default function MdCodeEditor({
   useEffect(() => {
     if (!spellMenu) return undefined;
     const close = () => setSpellMenu(null);
-    const onKey = (e) => {
+    const onKey = (e: any) => {
       if (e.key === 'Escape') close();
     };
     window.addEventListener('mousedown', close);
@@ -770,7 +824,7 @@ export default function MdCodeEditor({
                   role="option"
                   aria-selected={i === wikiIndex}
                   className={`slash-item wiki-item ${i === wikiIndex ? 'active' : ''}`}
-                  onMouseDown={(e) => {
+                  onMouseDown={(e: any) => {
                     e.preventDefault();
                     applyWikiTitle(title);
                   }}
@@ -802,7 +856,7 @@ export default function MdCodeEditor({
                 role="option"
                 aria-selected={i === latexIndex}
                 className={`slash-item latex-item ${i === latexIndex ? 'active' : ''}`}
-                onMouseDown={(e) => {
+                onMouseDown={(e: any) => {
                   e.preventDefault();
                   applyLatexCommand(cmd);
                 }}
@@ -834,7 +888,7 @@ export default function MdCodeEditor({
                 role="option"
                 aria-selected={i === slashIndex}
                 className={`slash-item ${i === slashIndex ? 'active' : ''}`}
-                onMouseDown={(e) => {
+                onMouseDown={(e: any) => {
                   e.preventDefault();
                   applySlashCommand(cmd);
                 }}
@@ -853,7 +907,7 @@ export default function MdCodeEditor({
             className="spell-menu"
             style={{ top: spellMenu.top, left: spellMenu.left }}
             role="menu"
-            onMouseDown={(e) => e.stopPropagation()}
+            onMouseDown={(e: any) => e.stopPropagation()}
           >
             {spellMenu.suggestions.length === 0 ? (
               <div className="spell-menu-empty">No suggestions</div>
@@ -864,7 +918,7 @@ export default function MdCodeEditor({
                   type="button"
                   className="spell-menu-item"
                   role="menuitem"
-                  onMouseDown={(e) => {
+                  onMouseDown={(e: any) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const view = viewRef.current;
@@ -888,7 +942,7 @@ export default function MdCodeEditor({
               type="button"
               className="spell-menu-item muted"
               role="menuitem"
-              onMouseDown={(e) => {
+              onMouseDown={(e: any) => {
                 e.preventDefault();
                 e.stopPropagation();
                 const view = viewRef.current;
@@ -897,7 +951,7 @@ export default function MdCodeEditor({
                   const next = new Set(view.state.field(misspelledField));
                   next.delete(spellMenu.word);
                   next.delete(spellMenu.word.toLowerCase());
-                  view.dispatch({ effects: setMisspelledEffect.of(next) });
+                  view.dispatch({ effects: setMisspelledEffect.of(next as any) });
                 }
                 setSpellMenu(null);
               }}
