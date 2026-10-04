@@ -599,4 +599,26 @@ module.exports = {
   deleteTemplate,
 };
 
-export {};
+export {
+  ensureVault,
+  listNotebooks,
+  listTags,
+  listNotes,
+  getWikiGraph,
+  getNote,
+  saveNote,
+  createNote,
+  createNotebook,
+  renameNotebook,
+  setNotebookIcon,
+  moveNotebook,
+  deleteNotebook,
+  duplicateNote,
+  deleteNote,
+  saveTag,
+  deleteTag,
+  vaultRoot,
+  listCustomTemplates,
+  saveTemplate,
+  deleteTemplate,
+};

@@ -469,4 +469,10 @@ module.exports = {
   HOST,
 };
 
-export {};
+export {
+  startMcpHttp,
+  stopMcpHttp,
+  getMcpHttpStatus,
+  DEFAULT_PORT,
+  HOST,
+};

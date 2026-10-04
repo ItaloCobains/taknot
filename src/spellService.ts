@@ -125,12 +125,16 @@ function checkWords(words: string[]): string[] {
   return bad;
 }
 
+function whenReady() {
+  return state.ready;
+}
+
 module.exports = {
   initSpellService,
   checkWords,
   suggest,
   isCorrect,
-  whenReady: () => state.ready,
+  whenReady,
 };
 
-export {};
+export { initSpellService, checkWords, suggest, isCorrect, whenReady };

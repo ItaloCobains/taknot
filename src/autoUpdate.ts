@@ -197,4 +197,4 @@ function initAutoUpdate() {
 
 module.exports = { initAutoUpdate, checkForUpdates };
 
-export {};
+export { initAutoUpdate, checkForUpdates };
