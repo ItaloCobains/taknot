@@ -36,6 +36,15 @@ test('deleteNotebook moves a note into the Inbox', async () => {
   expect(saved.notebookId).toBe('nb_inbox');
 });
 
+test('moveNotebook refuses to move a notebook into itself', async () => {
+  const { ensureVault, createNotebook, moveNotebook } = await import('./vault');
+  await ensureVault();
+  const notebook = await createNotebook('Projects');
+  await expect(moveNotebook(notebook.id, notebook.id)).rejects.toThrow(
+    'Cannot move into itself',
+  );
+});
+
 test('deleteNotebook lifts a child notebook to the deleted parent', async () => {
   const { ensureVault, createNotebook, deleteNotebook, listNotebooks } =
     await import('./vault');
