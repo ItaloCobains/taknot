@@ -53,7 +53,7 @@ Depois de mudar código do **main** / `vault.ts` / `preload.ts`, no terminal do 
 | `npm run package` | Empacota sem instaladores |
 | `npm run make` | Gera instaladores locais em `out/` |
 | `npm run publish` | Make + upload para GitHub Releases |
-| `npm run mcp:smoke` | Sobe MCP HTTP em processo Node (vault temp) e exercita as tools |
+| `npm test` | Testes de unidade, incluindo o contrato MCP num vault temporário |
 
 ## Onde ficam as notas
 
@@ -103,7 +103,7 @@ Tools: notes (`list/get/create/update/delete/duplicate`), tags (`list/save/delet
 
 Mudanças feitas pelo agente disparam refresh na UI (`fs.watch` no vault).
 
-Smoke (sem GUI): `npm run mcp:smoke`.
+O contrato das tools é coberto por `npm test` (`src/mcpHttp.test.ts`), num vault temporário.
 
 ## Release
 

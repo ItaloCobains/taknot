@@ -12,7 +12,6 @@
     "publish": "electron-forge publish",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "mcp:smoke": "node scripts/mcp-smoke.mjs",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

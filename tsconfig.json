@@ -18,5 +18,5 @@
     "types": ["vite/client", "node"]
   },
   "include": ["src/**/*", "index.html", "vite.*.config.mjs"],
-  "exclude": ["node_modules", ".vite", "out", "dist"]
+  "exclude": ["node_modules", ".vite", "out", "dist", "**/*.test.ts"]
 }
