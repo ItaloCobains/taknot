@@ -45,6 +45,16 @@ test('moveNotebook refuses to move a notebook into itself', async () => {
   );
 });
 
+test('moveNotebook refuses to move a notebook into a descendant', async () => {
+  const { ensureVault, createNotebook, moveNotebook } = await import('./vault');
+  await ensureVault();
+  const parent = await createNotebook('Projects');
+  const child = await createNotebook('Specs', parent.id);
+  await expect(moveNotebook(parent.id, child.id)).rejects.toThrow(
+    'Cannot move into a descendant',
+  );
+});
+
 test('deleteNotebook lifts a child notebook to the deleted parent', async () => {
   const { ensureVault, createNotebook, deleteNotebook, listNotebooks } =
     await import('./vault');
