@@ -15,12 +15,12 @@ type QuickSearchProps = {
 export default function QuickSearch({
   open,
   onClose,
+  notes,
   onSelect,
   colorsByTag = {},
 }: QuickSearchProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
-  const [notes, setNotes] = useState<import('../vite-env').TaknotNote[]>([]);
   const [index, setIndex] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -28,18 +28,8 @@ export default function QuickSearch({
     if (!open) return undefined;
     setQuery('');
     setIndex(0);
-    let cancelled = false;
-    window.taknot
-      .listNotes({})
-      .then((list) => {
-        if (!cancelled) setNotes(list || []);
-      })
-      .catch(console.error);
     const t = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(t);
-    };
+    return () => cancelAnimationFrame(t);
   }, [open]);
 
   const filtered = useMemo(() => {
