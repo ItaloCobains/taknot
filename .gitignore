@@ -91,3 +91,8 @@ typings/
 # Electron-Forge
 out/
 dist/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/

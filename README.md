@@ -54,6 +54,9 @@ Depois de mudar código do **main** / `vault.ts` / `preload.ts`, no terminal do 
 | `npm run make` | Gera instaladores locais em `out/` |
 | `npm run publish` | Make + upload para GitHub Releases |
 | `npm test` | Testes de unidade, incluindo o contrato MCP num vault temporário |
+| `npm run test:e2e` | Testes de ponta a ponta do app, num vault temporário |
+| `npm run test:all` | Unidade e ponta a ponta |
+| `npm run test:coverage` | Unidade com relatório de cobertura |
 
 ## Onde ficam as notas
 

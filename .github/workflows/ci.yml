@@ -1,25 +1,11 @@
-name: Release
+name: CI
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-
-permissions:
-  contents: write
+  pull_request:
 
 jobs:
-  release:
-    strategy:
-      fail-fast: false
-      # One OS at a time — concurrent publisher-github uploads race on the same release
-      max-parallel: 1
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-
-    runs-on: ${{ matrix.os }}
-
+  test:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +20,6 @@ jobs:
         run: npm ci
 
       - name: Install Electron libraries
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 libgtk-3-0
@@ -43,17 +28,7 @@ jobs:
         run: npm run typecheck
 
       - name: Unit tests
-        run: npm test
+        run: npm run test:coverage
 
       - name: End-to-end tests
-        if: runner.os != 'Linux'
-        run: npm run test:e2e
-
-      - name: End-to-end tests
-        if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum npm run test:e2e
-
-      - name: Publish to GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run publish
