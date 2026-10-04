@@ -91,6 +91,13 @@ test('deleteTag strips the name from notes', async () => {
   expect(saved.tags).toEqual([]);
 });
 
+test('saveTag refuses a duplicate name', async () => {
+  const { ensureVault, saveTag } = await import('./vault');
+  await ensureVault();
+  await saveTag({ name: 'Draft' });
+  await expect(saveTag({ name: 'draft' })).rejects.toThrow('Tag already exists');
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
