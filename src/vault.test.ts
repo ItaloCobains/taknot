@@ -36,6 +36,19 @@ test('deleteNotebook moves a note into the Inbox', async () => {
   expect(saved.notebookId).toBe('nb_inbox');
 });
 
+test('deleteNotebook lifts a child notebook to the deleted parent', async () => {
+  const { ensureVault, createNotebook, deleteNotebook, listNotebooks } =
+    await import('./vault');
+  await ensureVault();
+  const parent = await createNotebook('Parent');
+  const child = await createNotebook('Child', parent.id);
+  const grandchild = await createNotebook('Grand', child.id);
+  await deleteNotebook(child.id);
+  const notebooks = await listNotebooks();
+  const saved = notebooks.find((n) => n.id === grandchild.id);
+  expect(saved?.parentId).toBe(parent.id);
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
