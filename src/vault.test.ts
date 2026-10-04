@@ -30,3 +30,19 @@ test('deleteNotebook moves a note into the Inbox', async () => {
   const saved = await getNote(note.id);
   expect(saved.notebookId).toBe('nb_inbox');
 });
+
+test('saveNote keeps updatedAt when nothing changed', async () => {
+  const { ensureVault, createNote, saveNote } = await import('./vault');
+  await ensureVault();
+  const created = await createNote({ title: 'Spec', body: '# Spec\n' });
+  const saved = await saveNote({
+    id: created.id,
+    title: created.title,
+    body: created.body,
+    notebookId: created.notebookId,
+    status: created.status,
+    pinned: created.pinned,
+    tags: created.tags,
+  });
+  expect(saved.updatedAt).toBe(created.updatedAt);
+});
