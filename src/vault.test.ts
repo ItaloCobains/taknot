@@ -98,6 +98,13 @@ test('saveTag refuses a duplicate name', async () => {
   await expect(saveTag({ name: 'draft' })).rejects.toThrow('Tag already exists');
 });
 
+test('createNote takes the title from the first body line', async () => {
+  const { ensureVault, createNote } = await import('./vault');
+  await ensureVault();
+  const note = await createNote({ body: '# Hello world\n\nbody' });
+  expect(note.title).toBe('Hello world');
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
