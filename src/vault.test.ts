@@ -1,10 +1,14 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 
-const dir = await mkdtemp(path.join(tmpdir(), 'taknot-vault-'));
-process.env.TAKNOT_VAULT = dir;
+let dir: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(path.join(tmpdir(), 'taknot-vault-'));
+  process.env.TAKNOT_VAULT = dir;
+});
 
 afterEach(async () => {
   delete process.env.TAKNOT_VAULT;
@@ -14,4 +18,15 @@ afterEach(async () => {
 test('deleteNotebook refuses to delete the Inbox', async () => {
   const { deleteNotebook } = await import('./vault');
   await expect(deleteNotebook('nb_inbox')).rejects.toThrow('Cannot delete Inbox');
+});
+
+test('deleteNotebook moves a note into the Inbox', async () => {
+  const { ensureVault, createNotebook, createNote, deleteNotebook, getNote } =
+    await import('./vault');
+  await ensureVault();
+  const notebook = await createNotebook('Projects');
+  const note = await createNote({ notebookId: notebook.id, title: 'Spec' });
+  await deleteNotebook(notebook.id);
+  const saved = await getNote(note.id);
+  expect(saved.notebookId).toBe('nb_inbox');
 });
