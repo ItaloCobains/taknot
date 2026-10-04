@@ -68,6 +68,17 @@ test('deleteNotebook lifts a child notebook to the deleted parent', async () => 
   expect(saved?.parentId).toBe(parent.id);
 });
 
+test('saveTag rename rewrites the name on notes', async () => {
+  const { ensureVault, saveTag, createNote, saveNote, getNote } = await import('./vault');
+  await ensureVault();
+  const tag = await saveTag({ name: 'Draft' });
+  const created = await createNote({ title: 'Spec', body: '# Spec\n' });
+  await saveNote({ id: created.id, tags: ['draft'] });
+  await saveTag({ id: tag.id, name: 'Shipped' });
+  const saved = await getNote(created.id);
+  expect(saved.tags).toEqual(['shipped']);
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
