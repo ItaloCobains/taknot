@@ -105,6 +105,13 @@ test('createNote takes the title from the first body line', async () => {
   expect(note.title).toBe('Hello world');
 });
 
+test('createNote lands in the Inbox when no notebook is chosen', async () => {
+  const { ensureVault, createNote } = await import('./vault');
+  await ensureVault();
+  const note = await createNote({ title: 'Loose', body: '# Loose\n' });
+  expect(note.notebookId).toBe('nb_inbox');
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
