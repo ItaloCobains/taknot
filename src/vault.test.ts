@@ -112,6 +112,123 @@ test('createNote lands in the Inbox when no notebook is chosen', async () => {
   expect(note.notebookId).toBe('nb_inbox');
 });
 
+test('createNote starts active with no tags', async () => {
+  const { ensureVault, createNote } = await import('./vault');
+  await ensureVault();
+  const note = await createNote({ title: 'Loose', body: '# Loose\n' });
+  expect({ status: note.status, tags: note.tags }).toEqual({
+    status: 'active',
+    tags: [],
+  });
+});
+
+test('duplicateNote appends (copy) to the title', async () => {
+  const { ensureVault, createNote, duplicateNote } = await import('./vault');
+  await ensureVault();
+  const note = await createNote({ title: 'Spec', body: '# Spec\n' });
+  const copy = await duplicateNote(note.id);
+  expect(copy.title).toBe('Spec (copy)');
+});
+
+test('deleteNote removes the note', async () => {
+  const { ensureVault, createNote, deleteNote, getNote } = await import('./vault');
+  await ensureVault();
+  const note = await createNote({ title: 'Spec', body: '# Spec\n' });
+  await deleteNote(note.id);
+  await expect(getNote(note.id)).rejects.toThrow(`Note not found: ${note.id}`);
+});
+
+test('listNotes puts a pinned note first', async () => {
+  const { ensureVault, createNote, saveNote, listNotes } = await import('./vault');
+  await ensureVault();
+  const older = await createNote({ title: 'Older', body: '# Older\n' });
+  await createNote({ title: 'Newer', body: '# Newer\n' });
+  await saveNote({ id: older.id, pinned: true });
+  const notes = await listNotes();
+  expect(notes[0].id).toBe(older.id);
+});
+
+test('listNotes query matches the title only', async () => {
+  const { ensureVault, createNote, listNotes } = await import('./vault');
+  await ensureVault();
+  await createNote({ title: 'Spec', body: '# Spec\n\nsecretword' });
+  const byTitle = await listNotes({ query: 'spec' });
+  const byBody = await listNotes({ query: 'secretword' });
+  expect({ titles: byTitle.map((n) => n.title), bodies: byBody.length }).toEqual({
+    titles: ['Spec'],
+    bodies: 0,
+  });
+});
+
+test('listNotes treats a missing markdown file as an empty body', async () => {
+  const { ensureVault, createNote, listNotes } = await import('./vault');
+  const { unlink } = await import('node:fs/promises');
+  await ensureVault();
+  const note = await createNote({ title: 'Spec', body: '# Spec\n\n- [ ] todo' });
+  await unlink(`${dir}/notes/${note.id}.md`);
+  const notes = await listNotes();
+  expect(notes.find((n) => n.id === note.id)?.tasks).toBeNull();
+});
+
+test('getNote fails when the markdown file is missing', async () => {
+  const { ensureVault, createNote, getNote } = await import('./vault');
+  const { unlink } = await import('node:fs/promises');
+  await ensureVault();
+  const note = await createNote({ title: 'Spec', body: '# Spec\n' });
+  await unlink(`${dir}/notes/${note.id}.md`);
+  await expect(getNote(note.id)).rejects.toThrow('ENOENT');
+});
+
+test('ensureVault seeds the Welcome note and the taknot tag', async () => {
+  const { ensureVault, listNotes, listTags } = await import('./vault');
+  await ensureVault();
+  const notes = await listNotes();
+  const tags = await listTags();
+  expect({
+    title: notes.find((n) => n.id === 'note_welcome')?.title,
+    tag: tags.find((t) => t.name === 'taknot')?.name,
+  }).toEqual({ title: 'Welcome', tag: 'taknot' });
+});
+
+test('saveTemplate updates a custom template body', async () => {
+  const { ensureVault, saveTemplate } = await import('./vault');
+  await ensureVault();
+  const created = await saveTemplate({ name: 'Standup', body: '# Standup' });
+  const updated = await saveTemplate({
+    id: created.id,
+    name: 'Standup',
+    body: '# Daily',
+  });
+  expect(updated.body).toBe('# Daily');
+});
+
+test('deleteTemplate removes a custom template', async () => {
+  const { ensureVault, saveTemplate, deleteTemplate, listCustomTemplates } =
+    await import('./vault');
+  await ensureVault();
+  const created = await saveTemplate({ name: 'Standup', body: '# Standup' });
+  await deleteTemplate(created.id);
+  const left = await listCustomTemplates();
+  expect(left.some((t) => t.id === created.id)).toBe(false);
+});
+
+test('getWikiGraph links a wiki title to the other note', async () => {
+  const { ensureVault, createNote, getWikiGraph } = await import('./vault');
+  await ensureVault();
+  const target = await createNote({ title: 'Target', body: '# Target\n' });
+  const source = await createNote({ title: 'Source', body: '# Source\n\nSee [[Target]]' });
+  const graph = await getWikiGraph();
+  expect(graph.edges).toEqual([{ source: source.id, target: target.id }]);
+});
+
+test('getWikiGraph drops a self link', async () => {
+  const { ensureVault, createNote, getWikiGraph } = await import('./vault');
+  await ensureVault();
+  await createNote({ title: 'Loop', body: '# Loop\n\n[[Loop]]' });
+  const graph = await getWikiGraph();
+  expect(graph.edges).toEqual([]);
+});
+
 test('saveNote keeps updatedAt when nothing changed', async () => {
   const { ensureVault, createNote, saveNote } = await import('./vault');
   await ensureVault();
