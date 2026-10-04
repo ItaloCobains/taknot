@@ -20,6 +20,11 @@ test('deleteNotebook refuses to delete the Inbox', async () => {
   await expect(deleteNotebook('nb_inbox')).rejects.toThrow('Cannot delete Inbox');
 });
 
+test('moveNotebook refuses to move the Inbox', async () => {
+  const { moveNotebook } = await import('./vault');
+  await expect(moveNotebook('nb_inbox', null)).rejects.toThrow('Cannot move Inbox');
+});
+
 test('deleteNotebook moves a note into the Inbox', async () => {
   const { ensureVault, createNotebook, createNote, deleteNotebook, getNote } =
     await import('./vault');
