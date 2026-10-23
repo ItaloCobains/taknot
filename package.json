@@ -32,7 +32,7 @@
     "@codemirror/view": "^6.43.12",
     "@cspell/dict-pt-br": "^2.4.2",
     "@lezer/highlight": "^1.2.3",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@replit/codemirror-vim": "^6.4.0",
     "dictionary-en": "^4.0.0",
     "dictionary-pt-br": "^2.0.1",
